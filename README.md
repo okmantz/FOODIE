@@ -11,7 +11,7 @@ A free, private, **local-first** food and meal-planning app. Plan a week (or two
 | Area | What it does |
 | --- | --- |
 | **Meal planner** | 7-day, 14-day or 30-day plans of breakfast / lunch / dinner (+ optional snacks). Preferences: budget, store, servings, diet, cuisines, max cook time, "use my pantry", and *different meals* vs *leftovers*. Swap, remove or add any meal; mark meals done. |
-| **Recipes** | 81 original recipes across American, Italian, Mexican, Thai, Indian, Japanese, Chinese, Korean, Mediterranean, Greek, Middle Eastern and French cooking, plus desserts, smoothies/shakes and snacks. Each has ingredients, steps, prep/cook time, nutrition and cost per serving, allergen and diet badges, servings scaler, US/metric units. |
+| **Recipes** | 528 original recipes across American, Italian, Mexican, Thai, Indian, Japanese, Chinese, Korean, Mediterranean, Greek, Middle Eastern and French cooking, plus desserts, smoothies/shakes and snacks. Each has ingredients, steps, prep/cook time, nutrition and cost per serving, allergen and diet badges, servings scaler, US/metric units. |
 | **Your own recipes** | Create, edit, photograph, rate and note recipes. Pick ingredients from the FOODIE database for automatic nutrition/cost, or type your own. Share any recipe as a link or PDF. |
 | **Grocery list** | Built from the plan: aggregates ingredients, subtracts your pantry, rounds up to real pack sizes, groups by aisle. Edit quantities, cross off, add items, hide checked. **PDF**, **print**, **share link**, copy as text. "Finish shopping" adds purchases to the pantry. |
 | **Calendar** | Download an `.ics` file for the whole plan (meal times come from your profile), or add single meals to Google / Outlook calendars. |
@@ -102,7 +102,9 @@ python3 tests/flow.py; python3 tests/flow2.py; python3 tests/outputs.py
 
 ## Adding recipes
 
-Add an entry to `js/data/recipes.js` using ingredient ids from `js/data/ingredients.js`. Nutrition, cost, allergens and diet flags are derived automatically, so they cannot drift out of sync. Run `node tests/unit.mjs` to validate.
+Add an entry to `js/data/recipes.js` using ingredient ids from `js/data/ingredients.js`. Nutrition, cost, allergens and diet flags are derived automatically, so they cannot drift out of sync. Run `node tests/unit.mjs` to validate (it checks ids, units, steps and ingredient nutrition sanity).
+
+Ingredient nutrition is sourced from USDA FoodData Central (SR Legacy) per-100 g values, converted to FOODIE's base units; see `docs/INGREDIENT-VERIFICATION.md`. Food nutrition data from TempoLife (tempolife.app), CC-BY-4.0. Prices are approximate US averages.
 
 ## Limitations
 

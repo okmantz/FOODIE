@@ -1,6 +1,6 @@
 /* Offline support: precache the app shell, then serve same-origin files cache-first
    with a background refresh. Bump VERSION to force clients to update. */
-const VERSION = 'foodie-v1.0.0';
+const VERSION = 'foodie-v1.1.0';
 const CORE = ['./', 'index.html', 'css/styles.css', 'js/main.js', 'manifest.webmanifest', 'assets/coach.png', 'assets/coach-sm.png', 'assets/favicon.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(VERSION).then((c) => c.addAll(CORE)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== VERSION).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
