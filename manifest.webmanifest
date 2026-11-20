@@ -1,0 +1,14 @@
+{
+  "name": "FOODIE — Healthy choices. Happy you.",
+  "short_name": "FOODIE",
+  "description": "Meal planner, grocery lists, recipes and food discovery. Private and local-first.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f9f6ef",
+  "theme_color": "#4d9a1e",
+  "icons": [
+    { "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

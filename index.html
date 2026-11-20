@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>FOODIE — Healthy choices. Happy you.</title>
+  <meta name="description" content="FOODIE is a free, private meal planner, grocery list builder, recipe box and food discovery app. Everything stays on your device.">
+  <meta name="theme-color" content="#4d9a1e">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+  <link rel="stylesheet" href="css/styles.css">
+  <script>
+    // apply saved theme before first paint to avoid a flash
+    try { var s = JSON.parse(localStorage.getItem('foodie:v1') || '{}'); if (s.profile && s.profile.theme) document.documentElement.dataset.theme = s.profile.theme; } catch (e) {}
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+  <noscript><p style="padding:2rem;font-family:sans-serif">FOODIE needs JavaScript to run. It works entirely in your browser — no account or server required.</p></noscript>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
