@@ -10,10 +10,10 @@
  */
 import { state, allRecipes, recipeById, isFav, meta } from '../store.js';
 import { INGREDIENTS } from '../data/ingredients.js';
-import { rng, addDays, uid, hashStr, sum, today } from '../lib/util.js';
+import { rng, addDays, uid, hashStr, sum, today, parseISO } from '../lib/util.js';
 import { aggregate, pantryTotals, packsFor, cookedSlots } from './grocery.js';
-import { storeById } from '../data/stores.js';
-import { currentSeason, scale, CUISINE_FLAVORS } from './nutrition.js';
+import { storeById, priceMult } from '../data/stores.js';
+import { currentSeason, scale, CUISINE_FLAVORS, dailyCalories } from './nutrition.js';
 import { cuisineWeight, flavorWeight } from './taste.js';
 
 export const SLOTS = ['breakfast', 'lunch', 'dinner', 'snack'];
@@ -27,24 +27,50 @@ export const defaultPrefs = (profile = state.profile) => ({
 });
 
 /* ------------------------------------------------------------------ constraints */
+const stem = (w) => w.replace(/ies$/, 'y').replace(/(ch|sh|x|z|ss)es$/, '$1').replace(/s$/, '');
+const SEAFOOD = ['salmon', 'white-fish', 'tilapia', 'halibut', 'mahi-mahi', 'trout', 'smoked-salmon', 'tuna-can', 'canned-salmon', 'sardines', 'anchovies', 'fish-sauce', 'shrimp', 'scallops', 'canned-crab'];
+const GROUPS = {
+  mushroom: ['portobello', 'shiitake'], seafood: SEAFOOD, fish: SEAFOOD.filter((x) => !['shrimp', 'scallops', 'canned-crab'].includes(x)), shellfish: ['shrimp', 'scallops', 'canned-crab'],
+  nut: ['almonds', 'walnuts', 'cashews', 'pistachios', 'pecans', 'pine-nuts', 'hazelnuts', 'almond-butter', 'almond-flour', 'almond-milk', 'pesto', 'granola'],
+  cheese: ['cheddar', 'parmesan', 'mozzarella', 'feta', 'goat-cheese', 'swiss', 'provolone', 'pepper-jack', 'gruyere', 'blue-cheese', 'queso-fresco', 'ricotta', 'cottage-cheese', 'cream-cheese', 'mascarpone', 'halloumi', 'paneer'],
+  beef: ['ground-beef', 'steak', 'flank-steak', 'ribeye', 'beef-chuck', 'lean-ground-beef', 'beef-broth', 'beef-jerky'], pork: ['pork-chop', 'bacon', 'sausage', 'pork-tenderloin', 'pork-shoulder', 'ground-pork', 'ham', 'prosciutto', 'chorizo', 'pepperoni', 'breakfast-sausage', 'pork-rinds'],
+  tomato: ['marinara', 'salsa', 'ketchup', 'tomato-paste', 'canned-tomatoes', 'tomato-sauce', 'crushed-tomatoes', 'sun-dried-tomatoes', 'enchilada-sauce'], dairy: ['milk', 'butter', 'cheddar', 'parmesan', 'mozzarella', 'feta', 'greek-yogurt', 'cottage-cheese', 'heavy-cream', 'sour-cream', 'cream-cheese', 'ricotta', 'goat-cheese', 'ghee', 'buttermilk', 'half-and-half'],
+  spicy: ['jalapeno', 'cayenne', 'chili-powder', 'red-pepper-flakes', 'sriracha', 'hot-sauce', 'harissa', 'chipotle', 'gochujang', 'gochugaru', 'pickled-jalapenos', 'curry-paste', 'green-curry-paste'],
+};
+/** Does a disliked-ingredient entry (an id or free text) match this recipe ingredient? Whole-word, plural-tolerant: "egg" must not catch "eggplant". */
+export function dislikeHit(term, id) {
+  const t = String(term).toLowerCase().trim(); if (!t) return false;
+  if (id === t) return true;
+  const ing = INGREDIENTS[id]; const name = (ing?.name || id.replace('~', '')).toLowerCase();
+  const tt = stem(t);
+  if (/\s/.test(t)) return name.includes(t) || name.includes(tt);
+  const words = [...name.split(/[^a-z]+/), ...id.replace('~', '').split('-')].filter(Boolean).map(stem);
+  if (words.includes(tt)) return true;
+  const g = GROUPS[tt]; return !!g && g.some((x) => id === x);
+}
+
 export function violations(r, profile = state.profile, diets = profile.diets) {
   const out = [];
   for (const a of profile.allergies) if (r.d.allergens.includes(a)) out.push({ type: 'allergy', code: a });
   for (const [id] of r.i) {
     const name = (INGREDIENTS[id]?.name || id.replace('~', '')).toLowerCase();
-    for (const dl of profile.dislikes) if (id === dl || name.includes(String(dl).toLowerCase())) out.push({ type: 'dislike', code: dl, name });
+    for (const dl of profile.dislikes) if (dislikeHit(dl, id)) out.push({ type: 'dislike', code: dl, name });
   }
   for (const d of diets) if (!r.d.diets[d]) out.push({ type: 'diet', code: d });
   return out;
 }
-export const eligible = (r, prefs) => !state.dislikedRecipes.includes(r.id) && violations(r, state.profile, prefs.diets).length === 0;
+/** Auto-planning only uses recipes FOODIE can fully analyse when allergies or a diet are set — a custom recipe with free-text ingredients could hide an allergen. */
+export const eligible = (r, prefs) => !state.dislikedRecipes.includes(r.id) && !(r.d.unverified && (state.profile.allergies.length || (prefs.diets || []).length)) && violations(r, state.profile, prefs.diets).length === 0;
 
 /* ------------------------------------------------------------------ scoring context */
 function makeCtx(prefs, planSoFar = null) {
   const profile = state.profile;
-  const season = currentSeason(new Date(), profile.hemisphere);
-  const mult = storeById(prefs.store).mult;
+  const season = currentSeason(prefs.startDate ? parseISO(prefs.startDate) : new Date(), profile.hemisphere);   // season of the plan's own dates
+  const mult = priceMult(prefs.store);
   const pan = prefs.usePantry ? pantryTotals(state.pantry) : new Map();
+  const wantedSlots = SLOTS.filter((x) => (x === 'snack' ? prefs.snackFreq !== 'none' : prefs.slots[x]));
+  const activeShare = wantedSlots.reduce((a, x) => a + SHARE[x], 0) || 1;
+  const cal = dailyCalories(profile); const proTarget = +profile.protein || 0;
   const mealsPerDay = Object.values(prefs.slots).filter(Boolean).length + (prefs.snackFreq === 'daily' ? 1 : 0.4);
   const perServingBudget = prefs.budget ? prefs.budget / Math.max(1, prefs.days * mealsPerDay * prefs.household) : null;
   const usage = new Map(); const cuisineUse = new Map(); const basket = new Map(); const recentBySlot = { breakfast: [], lunch: [], dinner: [], snack: [] };
@@ -79,9 +105,9 @@ function makeCtx(prefs, planSoFar = null) {
     if (profile.favIngredients.length) s += Math.min(2, r.d.ingIds.filter((id) => profile.favIngredients.includes(id)).length * 0.7);
     if (prefs.usePantry && pan.size) { const main = r.i.filter(([id]) => INGREDIENTS[id] && !INGREDIENTS[id].flags.includes('Z')); const have = main.filter(([id, q]) => (pan.get(id) || 0) >= q * 0.5).length; s += (main.length ? have / main.length : 0) * 2.5; }
     if (r.seasons.length < 4) s += r.seasons.includes(season) ? 0.7 : -0.9;
-    const cal = +profile.calories;
-    if (cal) { const target = cal * SHARE[slot]; s -= (Math.abs(r.d.nut.kcal - target) / target) * 1.6; }
+    if (cal) { const target = cal * SHARE[slot] / activeShare; s -= (Math.abs(r.d.nut.kcal - target) / target) * 1.6; }   // shares are normalised to the meals actually planned
     else if (profile.goal === 'lose') s -= Math.max(0, r.d.nut.kcal - 550) / 400;
+    if (proTarget) { const pt = proTarget * SHARE[slot] / activeShare; if (r.d.nut.pro < pt * 0.6) s -= (1 - r.d.nut.pro / pt) * 0.9; }
     if (profile.goal === 'gain') s += (Math.min(r.d.nut.pro, 45) / 45) * 0.9;
     if (profile.goal === 'healthy') s += Math.min(r.d.nut.fiber, 10) * 0.06;
     if (perServingBudget) { const c = r.d.cost * mult; s += c > perServingBudget * 1.2 ? -(c - perServingBudget) * 2.5 : 0.3; }
@@ -210,7 +236,7 @@ export function fixBatches(plan) {
 export function planCost(plan, { usePantry = false, from = null, to = null } = {}) {
   const slots = cookedSlots(plan, from, to);
   const { ing } = aggregate(slots);
-  const mult = storeById(plan.store).mult;
+  const mult = priceMult(plan.store);
   const pan = usePantry ? pantryTotals(state.pantry) : new Map();
   let total = 0;
   for (const e of ing.values()) {

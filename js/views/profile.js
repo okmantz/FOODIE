@@ -2,7 +2,9 @@
 import { h, modal, toast, confirmDialog, download, imageToDataURL, money } from '../lib/util.js';
 import { state, commit, exportJSON, replaceState, resetState, storageBytes } from '../store.js';
 import { chipGroup, seg, field, go, notice } from '../ui.js';
-import { DIETS, CUISINES } from '../engines/nutrition.js';
+import { DIETS, CUISINES, bodyEstimate } from '../engines/nutrition.js';
+import { icon } from '../lib/icons.js';
+import { locationBar } from './locationui.js';
 import { ALLERGENS, ingredientList, INGREDIENTS } from '../data/ingredients.js';
 import { STORES } from '../data/stores.js';
 import { SLOTS, SLOT_LABEL } from '../engines/planner.js';
@@ -42,23 +44,26 @@ export function renderProfile() {
       h('div.field', {}, h('label', {}, 'Favorite ingredients'), chipList('favIngredients', 'e.g. avocado, salmon'))),
 
     h('section.card.stack', {}, h('h3', {}, 'Goals & daily targets'),
-      h('div.field', {}, h('label', {}, 'Main goal'), chipGroup({ multi: false, options: [{ id: 'healthy', label: '🥗 Eat healthier' }, { id: 'lose', label: '⬇ Lose weight' }, { id: 'gain', label: '💪 Build muscle' }, { id: 'maintain', label: '⚖ Maintain' }], value: p.goal, onChange: (v) => set((x) => (x.goal = v || 'healthy'), false) })),
+      h('div.field', {}, h('label', {}, 'Main goal'), chipGroup({ multi: false, options: [{ id: 'healthy', label: 'Eat healthier' }, { id: 'lose', label: 'Lose weight' }, { id: 'gain', label: 'Build muscle' }, { id: 'maintain', label: 'Maintain' }], value: p.goal, onChange: (v) => set((x) => (x.goal = v || 'healthy'), false) })),
       h('p.small.muted', { style: { margin: 0 } }, 'Targets are optional. Leave blank if you\'d rather not track numbers.'),
       h('div.grid.c4', {}, num('Calories / day', 'calories', { ph: 'e.g. 2000' }), num('Protein g', 'protein'), num('Carbs g', 'carbs'), num('Fat g', 'fat')),
-      h('button.btn.ghost.sm', { style: { alignSelf: 'flex-start' }, onclick: calorieHelper }, '🧮 Estimate my calories')),
+      bodyBlock(p)),
+
+    h('section.card.stack', {}, h('h3', {}, 'Your location'), h('p.small.muted', { style: { margin: 0 } }, 'FOODIE follows where you are while the app is open so nearby restaurants, grocery stores, hemisphere seasons and units are right for you. Nothing is stored on a server.'), locationBar()),
 
     h('section.card.stack', {}, h('h3', {}, 'Budgets & shopping'),
       h('div.grid.c3', {}, num('Weekly grocery budget ($)', 'weeklyBudget'), num('Monthly grocery budget ($)', 'monthlyBudget'), num('Monthly eating-out budget ($)', 'diningBudget')),
-      h('div.grid.c2', {}, field('Default grocery store', h('select', { onchange: (e) => set((x) => (x.store = e.target.value), false) }, STORES.map((s) => h('option', { value: s.id, selected: s.id === p.store }, s.name)))), num('People you usually cook for', 'household'))),
+      h('div.grid.c2', {}, field('Default grocery store', h('select', { onchange: (e) => set((x) => (x.store = e.target.value), false) }, STORES.map((s) => h('option', { value: s.id, selected: s.id === p.store }, s.name)))), num('People you usually cook for', 'household')),
+      priceBlock(p)),
 
     h('section.card.stack', {}, h('h3', {}, 'FOODIE Coach'),
       h('label.row', { style: { gap: '10px' } }, h('input', { type: 'checkbox', checked: p.coachOn, onchange: (e) => set((x) => (x.coachOn = e.target.checked), false) }), h('span', {}, h('b', {}, 'Show coach notes on recipes and tips on the dashboard'), h('div.small.muted', {}, 'Gentle heads-ups about allergies, diet, goals and budget. You can always override. Turn off for a quieter app.'))),
       h('div.notice', {}, h('span', {}, '🤖'), h('span', {}, 'The Coach is a transparent set of rules running in your browser — not an AI model and nothing is sent anywhere. It never blocks a choice.'))),
 
     h('section.card.stack', {}, h('h3', {}, 'Preferences'),
-      h('div.grid.c2', {}, field('Units', seg([{ id: 'us', label: 'US (oz, cups)' }, { id: 'metric', label: 'Metric (g, ml)' }], p.units, (v) => set((x) => (x.units = v), false))),
+      h('div.grid.c2', {}, field('Units', seg([{ id: 'us', label: 'US (oz, cups)' }, { id: 'metric', label: 'Metric (g, ml)' }], p.units, (v) => set((x) => { x.units = v; x.unitsSet = true; }, false))),
         field('Appearance', seg([{ id: 'auto', label: 'Auto' }, { id: 'light', label: 'Light' }, { id: 'dark', label: 'Dark' }], p.theme, (v) => set((x) => (x.theme = v), false))),
-        field('Hemisphere (for seasonal picks)', seg([{ id: 'north', label: 'Northern' }, { id: 'south', label: 'Southern' }], p.hemisphere, (v) => set((x) => (x.hemisphere = v), false)))),
+        field('Hemisphere (for seasonal picks)', seg([{ id: 'auto', label: 'Auto (from location)' }, { id: 'north', label: 'Northern' }, { id: 'south', label: 'Southern' }], p.hemisphereAuto !== false ? 'auto' : p.hemisphere, (v) => set((x) => { if (v === 'auto') x.hemisphereAuto = true; else { x.hemisphereAuto = false; x.hemisphere = v; } }, false)))),
       h('div.field', {}, h('label', {}, 'Usual meal times (used for calendar events and prep schedules)'), h('div.grid.c4', {}, SLOTS.map((s) => field(SLOT_LABEL[s].split(' ')[0], h('input', { type: 'time', value: p.mealTimes[s], onchange: (e) => set((x) => (x.mealTimes[s] = e.target.value || x.mealTimes[s])) })))))),
 
     h('section.card.stack', {}, h('h3', {}, 'Your data'), h('p.small.muted', { style: { margin: 0 } }, `Stored in this browser (${(storageBytes() / 1024).toFixed(0)} KB used). Clearing your browser data will erase it — export a backup now and then.`),
@@ -84,20 +89,26 @@ async function restore(e) {
   } catch { toast('That file isn\'t a valid FOODIE backup'); }
 }
 
-function calorieHelper() {
-  const sys = state.profile.units; const d = { sex: 'f', age: 35, w: sys === 'us' ? 150 : 68, h: sys === 'us' ? 66 : 168, act: 1.375 };
-  const out = h('div.notice.good', { role: 'status' }, 'Fill in the fields to see an estimate.');
-  const calc = () => {
-    const kg = sys === 'us' ? d.w * 0.4536 : d.w; const cm = sys === 'us' ? d.h * 2.54 : d.h;
-    const bmr = 10 * kg + 6.25 * cm - 5 * d.age + (d.sex === 'm' ? 5 : -161); const tdee = bmr * d.act;
-    const goal = state.profile.goal; const target = Math.round((goal === 'lose' ? tdee - 400 : goal === 'gain' ? tdee + 250 : tdee) / 50) * 50;
-    out.textContent = `Estimated maintenance ≈ ${Math.round(tdee / 50) * 50} kcal/day. For your goal (${{ lose: 'lose weight', gain: 'build muscle', maintain: 'maintain', healthy: 'eat healthier' }[goal]}): ≈ ${target} kcal/day.`; out.dataset.t = target; return target;
+function bodyBlock(p) {
+  const b = p.body; const sys = p.units; const out = h('div.notice.good', { role: 'status' });
+  const paint = () => {
+    const e = bodyEstimate(state.profile);
+    out.replaceChildren(icon('calc'), h('span', {}, e ? `Estimated maintenance ≈ ${e.tdee} kcal/day; for your goal ≈ ${e.target} kcal/day. FOODIE plans around ${+state.profile.calories ? 'your own target above' : 'this estimate'}.` : 'Add age, weight and height for a personalized calorie estimate (Mifflin-St Jeor — a starting point, not medical advice).'));
   };
-  const row = (l, el) => field(l, el);
-  modal({ title: 'Estimate daily calories', body: h('div.stack', {}, h('p.small.muted', {}, 'Uses the Mifflin-St Jeor formula — a rough starting point, not medical advice. Nothing you enter here is saved.'),
-    h('div.grid.c2', {}, row('Sex (for the formula)', h('select', { onchange: (e) => { d.sex = e.target.value; calc(); } }, h('option', { value: 'f' }, 'Female'), h('option', { value: 'm' }, 'Male'))), row('Age', h('input', { type: 'number', value: d.age, min: 14, max: 100, oninput: (e) => { d.age = +e.target.value; calc(); } })),
-      row(`Weight (${sys === 'us' ? 'lb' : 'kg'})`, h('input', { type: 'number', value: d.w, oninput: (e) => { d.w = +e.target.value; calc(); } })), row(`Height (${sys === 'us' ? 'in' : 'cm'})`, h('input', { type: 'number', value: d.h, oninput: (e) => { d.h = +e.target.value; calc(); } }))),
-    row('Activity', h('select', { onchange: (e) => { d.act = +e.target.value; calc(); } }, [[1.2, 'Mostly sitting'], [1.375, 'Light activity (1–3 workouts/wk)'], [1.55, 'Moderate (3–5 workouts/wk)'], [1.725, 'Very active']].map(([v, l]) => h('option', { value: v, selected: v === 1.375 }, l)))), out),
-    actions: [{ label: 'Close' }, { label: 'Use this target', primary: true, onClick: () => { const t = calc(); if (!(t > 800)) { toast('That number looks too low — double-check your inputs'); return false; } set((x) => (x.calories = t), false); } }] });
-  calc();
+  const save = (k, v) => { set((x) => { x.body[k] = v; }, true); paint(); };
+  paint();
+  return h('div.stack.sm', {}, h('div.eyebrow', {}, 'Estimate from body stats (optional)'),
+    h('div.grid.c4', {}, field('Sex (for the formula)', h('select', { onchange: (e) => save('sex', e.target.value) }, h('option', { value: 'f', selected: b.sex !== 'm' }, 'Female'), h('option', { value: 'm', selected: b.sex === 'm' }, 'Male'))),
+      field('Age', h('input', { type: 'number', min: 14, max: 100, value: b.age, oninput: (e) => save('age', e.target.value === '' ? '' : +e.target.value) })),
+      field(`Weight (${sys === 'us' ? 'lb' : 'kg'})`, h('input', { type: 'number', min: 0, value: b.weight, oninput: (e) => save('weight', e.target.value === '' ? '' : +e.target.value) })),
+      field(`Height (${sys === 'us' ? 'in' : 'cm'})`, h('input', { type: 'number', min: 0, value: b.height, oninput: (e) => save('height', e.target.value === '' ? '' : +e.target.value) }))),
+    field('Activity', h('select', { onchange: (e) => save('activity', +e.target.value) }, [[1.2, 'Mostly sitting'], [1.375, 'Light (1–3 workouts/wk)'], [1.55, 'Moderate (3–5 workouts/wk)'], [1.725, 'Very active']].map(([v, l]) => h('option', { value: v, selected: +b.activity === v }, l)))), out);
+}
+
+function priceBlock(p) {
+  const lab = h('b', {}, ''); const paint = (v) => { lab.textContent = v === 0 ? 'Average US prices' : `${v > 0 ? '+' : ''}${v}% vs. average`; };
+  paint(+p.priceAdjust || 0);
+  return h('div.field', {}, h('label', {}, 'Prices where you shop'), h('div.row.between', {}, h('span.small.muted', {}, 'Cheaper area'), lab, h('span.small.muted', {}, 'Pricier area')),
+    h('input', { type: 'range', min: -25, max: 40, step: 5, value: +p.priceAdjust || 0, 'aria-label': 'Local price adjustment', oninput: (e) => paint(+e.target.value), onchange: (e) => set((x) => (x.priceAdjust = +e.target.value), false) }),
+    h('div.hint', {}, 'Scales every cost estimate to your area. Costs start from average US prices and each store\'s price level.'));
 }

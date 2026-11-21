@@ -7,6 +7,8 @@ import { state, commit } from '../store.js';
 import { CUISINE_FLAVORS } from './nutrition.js';
 import { DISH_IDEAS } from '../data/restaurants.js';
 import { sum } from '../lib/util.js';
+import { openStatus } from './places.js';
+import { fmtDist } from '../lib/location.js';
 
 const bump = (t, cat, key, d) => { if (!key) return; t[cat][key] = Math.round(((t[cat][key] || 0) + d) * 100) / 100; };
 
@@ -52,29 +54,43 @@ const dietOK = (dish, diets) => {
   });
 };
 
-/** Score a restaurant; returns {score, reasons[]}. Higher is better. */
-export function scoreRestaurant(r, { maxDistance = Infinity } = {}) {
+/** Score a restaurant; returns {score, reasons[], open}. Higher is better. */
+export function scoreRestaurant(r, { maxDistance = Infinity, now = new Date() } = {}) {
   const reasons = []; let score = 0;
   const cw = cuisineWeight(r.cuisine);
-  if (cw > 0) { score += cw; reasons.push(`You tend to enjoy ${r.cuisine} food`); }
+  if (cw > 0) { score += cw; reasons.push(`Matches your taste for ${r.cuisine} food`); }
   if (cw < 0) score += cw;
   if (state.profile.favCuisines.includes(r.cuisine)) { score += 2; reasons.push(`${r.cuisine} is one of your favorite cuisines`); }
   const fl = (r.tags || []).filter((t) => flavorWeight(t) > 1);
-  if (fl.length) { score += fl.reduce((a, t) => a + flavorWeight(t) * 0.5, 0); reasons.push(`Matches your taste for ${fl.slice(0, 2).join(' & ')} flavors`); }
+  if (fl.length) { score += fl.reduce((a, t) => a + flavorWeight(t) * 0.5, 0); reasons.push(`Fits your craving for ${fl.slice(0, 2).join(' & ')} flavors`); }
   const pp = preferredPrice();
-  if (pp && r.price) { const gap = Math.abs(pp - r.price); score += gap === 0 ? 1.2 : gap === 1 ? 0.2 : -1; if (gap === 0) reasons.push('Fits the price range you usually choose'); }
+  if (pp && r.price) { const gap = Math.abs(pp - r.price); score += gap === 0 ? 1.2 : gap === 1 ? 0.2 : -1; if (gap === 0 && !r.priceEst) reasons.push('Fits the price range you usually choose'); }
+  else if (pp && pp >= 3 && r.price === 1 && r.priceEst) score -= 0.6;
   if (r.rating) { score += (r.rating - 3.8) * 1.2; if (r.rating >= 4.5) reasons.push(`Highly rated (${r.rating.toFixed(1)}★)`); }
-  if (r.distance != null) { score -= Math.min(2.5, r.distance * 0.25); if (r.distance <= 1.5) reasons.push('Close by'); }
+  if (r.distance != null) {
+    score -= Math.min(3, r.distance * (r.source === 'osm' ? 0.4 : 0.25));
+    if (r.distance <= 0.5) reasons.push(`Very close · ${fmtDist(r.distance)}`); else if (r.distance <= 1.5) reasons.push(`Nearby · ${fmtDist(r.distance)}`);
+  }
+  // open right now? (only when OpenStreetMap has parseable hours — never guessed)
+  const st = r.hours ? openStatus(r.hours, now) : null;
+  if (st) { if (st.open) { score += 0.9; reasons.unshift(st.label); } else score -= 4; }
+  // eating style: favour places that say they cater to it
+  const diets = state.profile.diets;
+  for (const dk of ['vegan', 'vegetarian']) if (diets.includes(dk) && (r.diet || []).includes(dk)) { score += 1.6; reasons.push(`Has ${dk} options (per OpenStreetMap)`); }
+  if (diets.includes('glutenFree') && (r.diet || []).includes('gluten-free')) { score += 1.2; reasons.push('Lists gluten-free options'); }
+  // time of day: cafés shine in the morning, fade at dinner
+  const hr = now.getHours();
+  if (r.cuisine === 'Café') score += hr < 11 ? 1.2 : hr >= 17 ? -1.2 : 0;
   if (state.favorites.restaurants.includes(r.id)) { score += 2; reasons.push('One of your favorites'); }
   const visits = state.diningLog.filter((l) => l.rid === r.id).length;
   if (visits) { score += Math.min(2, visits * 0.5); reasons.push(`You've logged ${visits} visit${visits > 1 ? 's' : ''}`); }
   if (state.dislikedRestaurants.includes(r.id)) score -= 100;
   if (r.distance != null && r.distance > maxDistance) score -= 50;
-  return { score, reasons };
+  return { score, reasons, open: st };
 }
 
 export function dishesFor(r) {
-  return r.dishes?.length ? r.dishes.map((d) => ({ ...d, real: true })) : (DISH_IDEAS[r.cuisine] || DISH_IDEAS.American).map((d) => ({ ...d, real: false }));
+  return r.dishes?.length ? r.dishes.map((d) => ({ ...d, real: true })) : (DISH_IDEAS[r.cuisine] || []).map((d) => ({ ...d, real: false }));
 }
 
 export function scoreDish(d, r) {
@@ -104,12 +120,20 @@ export function quizResult(answers, QUIZ) {
   return { cuisines: top(cuisines), flavors: top(flavors), price };
 }
 
+const quizWeights = (result, sign, s) => {
+  result.cuisines.forEach(([c, n]) => learn(s, { cuisines: [c], w: sign * n * 1.5 }));
+  result.flavors.forEach(([f, n]) => learn(s, { flavors: [f], w: sign * n * 1.2 }));
+  if (result.price) learn(s, { price: result.price, w: sign * 3 });
+};
+/** Save a finished quiz. A retake REPLACES the previous quiz's influence instead of stacking on top of it. */
 export function applyQuiz(result) {
   commit((s) => {
-    result.cuisines.forEach(([c, n]) => learn(s, { cuisines: [c], w: n * 1.5 }));
-    result.flavors.forEach(([f, n]) => learn(s, { flavors: [f], w: n * 1.2 }));
-    if (result.price) learn(s, { price: result.price, w: 3 });
-    s.quizHistory.unshift({ date: Date.now(), cuisines: result.cuisines.slice(0, 3).map((x) => x[0]), flavors: result.flavors.slice(0, 3).map((x) => x[0]), price: result.price });
+    const prev = s.quizHistory[0]?.full;
+    if (prev) quizWeights(prev, -1, s);
+    quizWeights(result, 1, s);
+    for (const cat of Object.keys(s.taste)) for (const k of Object.keys(s.taste[cat])) if (s.taste[cat][k] <= 0 && Math.abs(s.taste[cat][k]) < 0.05) delete s.taste[cat][k];
+    s.quizHistory.unshift({ date: Date.now(), cuisines: result.cuisines.slice(0, 3).map((x) => x[0]), flavors: result.flavors.slice(0, 3).map((x) => x[0]), price: result.price, full: result });
     s.quizHistory = s.quizHistory.slice(0, 10);
   });
 }
+export function unapplyQuiz(result) { commit((s) => quizWeights(result, -1, s)); }

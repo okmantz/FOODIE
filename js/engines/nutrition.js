@@ -6,6 +6,7 @@
  */
 import { INGREDIENTS, ALLERGENS } from '../data/ingredients.js';
 import { BUILTIN_RECIPES } from '../data/recipes.js';
+import { MORE_RECIPES } from '../data/recipes-more.js';
 
 const ANIMAL = ['M', 'F', 'S', 'D', 'E', 'H'];
 export const DIETS = [
@@ -87,7 +88,7 @@ export function enrich(r) {
   return out;
 }
 
-export const BUILTIN = BUILTIN_RECIPES.map(enrich);
+export const BUILTIN = [...BUILTIN_RECIPES, ...MORE_RECIPES].map(enrich);
 
 /** Scale factor for cooking `servings` of a recipe. */
 export const scale = (r, servings) => servings / (r.s || 1);
@@ -116,6 +117,23 @@ export function currentSeason(date = new Date(), hemisphere = 'north') {
   if (hemisphere === 'north') return s;
   return { spring: 'autumn', summer: 'winter', autumn: 'spring', winter: 'summer' }[s];
 }
+
+/**
+ * Daily calorie target: the user's own number if set, otherwise an estimate from
+ * body stats (Mifflin-St Jeor × activity, nudged by goal). Returns 0 when unknown.
+ */
+export function bodyEstimate(profile) {
+  const b = profile.body || {};
+  const age = +b.age, w = +b.weight, hgt = +b.height;
+  if (!(age >= 14 && age <= 100 && w > 0 && hgt > 0)) return null;
+  const kg = profile.units === 'metric' ? w : w * 0.45359237, cm = profile.units === 'metric' ? hgt : hgt * 2.54;
+  const bmr = 10 * kg + 6.25 * cm - 5 * age + (b.sex === 'm' ? 5 : -161);
+  const tdee = bmr * (+b.activity || 1.375);
+  const adj = profile.goal === 'lose' ? -Math.min(500, tdee * 0.2) : profile.goal === 'gain' ? 250 : 0;
+  const floor = b.sex === 'm' ? 1500 : 1200;           // never suggest crash-diet numbers
+  return { bmr: Math.round(bmr), tdee: Math.round(tdee / 10) * 10, target: Math.max(floor, Math.round((tdee + adj) / 50) * 50), kg };
+}
+export const dailyCalories = (profile) => +profile.calories || bodyEstimate(profile)?.target || 0;
 
 export const CUISINES = ['American', 'Italian', 'Mexican', 'Thai', 'Indian', 'Japanese', 'Chinese', 'Korean', 'Mediterranean', 'Greek', 'Middle Eastern', 'French'];
 

@@ -7,7 +7,7 @@ import { INGREDIENTS, ingredientList, ALLERGENS } from '../data/ingredients.js';
 import { fmtQty, unitLabel, toDisplayNum, fromDisplayNum } from '../lib/units.js';
 import { violations, eligible } from '../engines/planner.js';
 import { pantryTotals, addRecipeToList, packsFor } from '../engines/grocery.js';
-import { storeById } from '../data/stores.js';
+import { storeById, priceMult } from '../data/stores.js';
 import { logCooked } from '../actions.js';
 import { shareLink, shareOrCopy, mailtoHref } from '../lib/share.js';
 import { PDF } from '../lib/pdf.js';
@@ -70,7 +70,7 @@ function importDialog() {
 export function renderRecipe(id) {
   const r = recipeById(id);
   if (!r) return h('div.view.empty', {}, h('div.big', {}, '🤷'), h('h3', {}, 'Recipe not found'), h('a.btn.primary', { href: '#/recipes' }, 'Browse recipes'));
-  const p = state.profile; const mult = storeById(p.store).mult; const sys = p.units;
+  const p = state.profile; const mult = priceMult(p.store); const sys = p.units;
   const m = meta(r.id);
   let servings = r.s <= 12 ? (p.household || r.s) : r.s;
   const f = () => scale(r, servings);
@@ -156,7 +156,7 @@ function recipePDF(r, servings) {
   const sys = state.profile.units; const f = scale(r, servings);
   const pdf = new PDF({ footer: `${r.n} · FOODIE` });
   pdf.title(r.n, `${r.c} · ${TYPE_LABEL[r.t]} · ${fmtMins(r.d.time)} · serves ${servings}`);
-  pdf.p(`Per serving: ${Math.round(r.d.nut.kcal)} kcal · ${Math.round(r.d.nut.pro)} g protein · ${Math.round(r.d.nut.carb)} g carbs · ${Math.round(r.d.nut.fat)} g fat   |   Est. cost $${(r.d.cost * storeById(state.profile.store).mult).toFixed(2)} per serving`, { size: 9.5, color: [0.4, 0.45, 0.4] });
+  pdf.p(`Per serving: ${Math.round(r.d.nut.kcal)} kcal · ${Math.round(r.d.nut.pro)} g protein · ${Math.round(r.d.nut.carb)} g carbs · ${Math.round(r.d.nut.fat)} g fat   |   Est. cost $${(r.d.cost * priceMult(state.profile.store)).toFixed(2)} per serving`, { size: 9.5, color: [0.4, 0.45, 0.4] });
   if (r.d.allergens.length) pdf.p('Contains: ' + r.d.allergens.map((a) => ALLERGEN_LABEL[a]).join(', '), { size: 9.5, font: 'b', color: [0.6, 0.35, 0.05] });
   pdf.h2('Ingredients');
   r.i.forEach(([i, q]) => { const ing = INGREDIENTS[i]; pdf.checkRow(ing ? ing.name : i.slice(1), ing ? fmtQty(ing, q * f, sys) : String(q)); });

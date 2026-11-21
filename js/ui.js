@@ -13,7 +13,7 @@ export function thumb(item, cls = '') {
   const seed = item.id || item.n || item.name || 'x';
   const hue = [28, 12, 48, 95, 140, 160, 8, 36, 340][hashStr(String(seed)) % 9];
   const photo = item.photo;
-  return h('div.thumb' + (cls ? '.' + cls.split(' ').join('.') : '') + (photo ? '.photo' : ''), { style: { '--h': hue, ...(photo ? { backgroundImage: `url("${photo}")` } : {}) }, 'aria-hidden': 'true' }, photo ? null : h('span.e', {}, item.e || item.emoji || '🍽️'));
+  return h('div.thumb' + (cls ? '.' + cls.split(' ').join('.') : '') + (photo ? '.photo' : ''), { style: { '--h': hue, ...(photo ? { backgroundImage: `url("${photo}")` } : {}) }, 'aria-hidden': 'true' }, photo ? null : h('span.e.food', {}, item.e || item.emoji || '🍽️'));
 }
 
 export const stars = (n) => h('span.stars', { role: 'img', 'aria-label': n ? `${n} out of 5 stars` : 'Not rated' }, [1, 2, 3, 4, 5].map((i) => h('span' + (i <= Math.round(n) ? '' : '.off'), {}, '★')));

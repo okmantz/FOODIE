@@ -3,7 +3,6 @@
  * Views read `state` and call `commit(mutator)`; subscribers re-render.
  */
 import { enrich, BUILTIN } from './engines/nutrition.js';
-import { SAMPLE_RESTAURANTS } from './data/restaurants.js';
 
 const KEY = 'foodie:v1';
 export const SCHEMA = 1;
@@ -15,7 +14,9 @@ export const defaults = () => ({
     goal: 'healthy', calories: '', protein: '', carbs: '', fat: '', weeklyBudget: 100, monthlyBudget: 400, diningBudget: 60,
     store: 'any', household: 2, units: 'us', theme: 'auto', hemisphere: 'north',
     mealTimes: { breakfast: '08:00', lunch: '12:30', dinner: '18:30', snack: '15:30' }, coachOn: true,
-    homeLoc: null, onboarded: false,
+    homeLoc: null, hemisphereAuto: true, unitsSet: false, priceAdjust: 0,
+    body: { sex: 'f', age: '', weight: '', height: '', activity: 1.375 },
+    onboarded: false,
   },
   customRecipes: [],
   favorites: { recipes: [], restaurants: [] },
@@ -24,7 +25,7 @@ export const defaults = () => ({
   plans: [], activePlanId: null,
   lists: [], activeListId: null,
   pantry: [],
-  restaurants: SAMPLE_RESTAURANTS.map((r) => ({ ...r, sample: true })),
+  restaurants: [],           // places the user added or saved; real nearby places live in the places cache
   savedDishes: [],           // {id, rid, restName, name, price, note}
   dislikedDishes: [],        // "rid|name"
   dislikedRestaurants: [],
@@ -44,6 +45,9 @@ function load() {
     // shallow-merge so new fields added in later versions get defaults
     const merged = { ...d, ...saved, profile: { ...d.profile, ...(saved.profile || {}), mealTimes: { ...d.profile.mealTimes, ...(saved.profile?.mealTimes || {}) } },
       favorites: { ...d.favorites, ...(saved.favorites || {}) }, taste: { ...d.taste, ...(saved.taste || {}) } };
+    merged.profile.body = { ...d.profile.body, ...(saved.profile?.body || {}) };
+    // older versions stored fictional demo restaurants in the user's data — they now live in code and show only as a fallback
+    merged.restaurants = (saved.restaurants || []).filter((r) => !r.sample);
     return merged;
   } catch (e) {
     console.warn('FOODIE: could not read saved data, starting fresh', e);
@@ -70,7 +74,7 @@ export function commit(mutator, { silent = false } = {}) {
   if (!silent) subs.forEach((fn) => fn(state));
 }
 
-export function replaceState(next) { state = { ...defaults(), ...next }; state.profile = { ...defaults().profile, ...(next.profile || {}) }; recipeCache = null; save(); subs.forEach((fn) => fn(state)); }
+export function replaceState(next) { state = { ...defaults(), ...next }; state.profile = { ...defaults().profile, ...(next.profile || {}) }; state.profile.body = { ...defaults().profile.body, ...(next.profile?.body || {}) }; state.restaurants = (state.restaurants || []).filter((r) => !r.sample); recipeCache = null; save(); subs.forEach((fn) => fn(state)); }
 export function resetState() { localStorage.removeItem(KEY); state = defaults(); recipeCache = null; save(); subs.forEach((fn) => fn(state)); }
 export const exportJSON = () => JSON.stringify({ app: 'FOODIE', exportedAt: new Date().toISOString(), data: state }, null, 1);
 export const storageBytes = () => (localStorage.getItem(KEY) || '').length;

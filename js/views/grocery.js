@@ -4,7 +4,9 @@ import { state, commit, activeList, activePlan, recipeById } from '../store.js';
 import { field, go, notice, chipGroup } from '../ui.js';
 import { groupByAisle, describeItem, listStats, itemCost, buyQty, packsFor, refreshList, listToText, listToHTML, newList, cookedSlots } from '../engines/grocery.js';
 import { INGREDIENTS } from '../data/ingredients.js';
-import { STORES, storeById } from '../data/stores.js';
+import { STORES, storeById, priceMult } from '../data/stores.js';
+import { nearbyChains } from '../engines/places.js';
+import { fmtDist } from '../lib/location.js';
 import { unitLabel, toDisplayNum, fromDisplayNum, fmtPack } from '../lib/units.js';
 import { PDF } from '../lib/pdf.js';
 import { shareLink, shareOrCopy, mailtoHref, smsHref } from '../lib/share.js';
@@ -47,6 +49,7 @@ export function renderGrocery() {
 
   const order = h('section.card.stack', {}, h('h3', {}, '🛍️ Order or pick up'),
     h('p.small.muted', { style: { margin: 0 } }, `${store.name}: ${store.order}. FOODIE can't place orders or see live prices (that requires each retailer's partner access) — but every item has a one-tap link to search it on the store's site, and you can copy the whole list.`),
+    nearbyStores(list, mutate),
     h('div.row', {}, field('Shopping at', h('select', { onchange: (e) => mutate(list.id, (l) => (l.store = e.target.value)) }, STORES.map((s) => h('option', { value: s.id, selected: s.id === list.store }, s.name)))),
       store.search ? h('a.btn.primary', { href: store.search('groceries'), target: '_blank', rel: 'noopener', style: { alignSelf: 'flex-end' } }, `Open ${store.name.split(' (')[0]} ↗`) : h('span.small.muted', { style: { alignSelf: 'flex-end' } }, 'Shop in store — print or share your list.')),
     h('div.row', {}, h('button.btn.ghost.sm', { onclick: async () => { await copyText(listToText(list, sys, { includeChecked: false })); toast('Remaining items copied — paste into your store app or notes'); } }, '📋 Copy remaining items'), h('button.btn.ghost.sm', { onclick: () => finishShopping(list) }, '✅ Finish shopping → add to pantry')));
@@ -61,7 +64,7 @@ export function renderGrocery() {
 
 function itemRow(list, i, sys, store) {
   const d = describeItem(i, sys); const finished = i.checked || i.have;
-  const cost = i.ing ? itemCost(i, storeById(list.store).mult) : 0;
+  const cost = i.ing ? itemCost(i, priceMult(list.store)) : 0;
   return h('div.li' + (finished ? '.done' : ''), {},
     h('input', { type: 'checkbox', checked: !!i.checked, 'aria-label': `Bought ${i.name}`, onchange: (e) => mutate(list.id, (l) => { const it = l.items.find((x) => x.key === i.key); it.checked = e.target.checked; }) }),
     h('div.nm', {}, h('b', {}, i.name), i.recipes?.length ? h('div.tiny.muted', {}, 'for ' + i.recipes.slice(0, 2).join(', ') + (i.recipes.length > 2 ? ` +${i.recipes.length - 2}` : '')) : null,
@@ -127,4 +130,11 @@ async function shareList(list) {
   const url = await shareLink('list', { name: list.name, store: list.store, items: list.items.map(({ key, ing, name, aisle, need, qtyOverride, manual, custom, text, qtyText, recipes }) => ({ key, ing, name, aisle, need, qtyOverride, manual, custom, text, qtyText, recipes })) });
   modal({ title: 'Share list', body: h('div.stack', {}, h('p.small.muted', {}, 'Send the plain-text checklist to anyone, or a FOODIE link that imports as an editable list.'), h('textarea', { readonly: true, rows: 7, onfocus: (e) => e.target.select() }, text),
     h('div.row', {}, h('button.btn.primary', { onclick: () => shareOrCopy({ title: list.name, text }) }, 'Share text'), h('a.btn.ghost', { href: smsHref(text) }, 'Text message'), h('a.btn.ghost', { href: mailtoHref(list.name, text) }, 'Email'), h('button.btn.ghost', { onclick: () => shareOrCopy({ title: list.name, text: 'Import this list into FOODIE:', url }) }, 'FOODIE link'))) });
+}
+
+/** Chains actually found near the user (from OpenStreetMap): one tap to shop there. */
+function nearbyStores(list, mutate) {
+  const near = [...nearbyChains().entries()].slice(0, 6); if (!near.length) return null;
+  return h('div.stack.sm', {}, h('div.eyebrow', {}, 'Stores near you'), h('div.chips', {}, near.map(([chain, pl]) => { const st = STORES.find((x) => x.id === chain); if (!st) return null;
+    return h('button.chip.sm' + (list.store === chain ? '.on' : ''), { type: 'button', onclick: () => mutate(list.id, (l) => (l.store = chain)) }, st.name.split(' (')[0], pl.distance != null ? h('span.tiny', {}, ' · ' + fmtDist(pl.distance)) : null); })));
 }

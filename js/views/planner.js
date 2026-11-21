@@ -5,7 +5,7 @@ import { thumb, chipGroup, seg, field, go, coachNotes, stars, sectionHead, dietB
 import { DIETS, CUISINES, TYPE_LABEL } from '../engines/nutrition.js';
 import { SLOTS, SLOT_LABEL, defaultPrefs, generatePlan, alternatives, swapMeal, setMeal, removeMeal, planCost, planNutritionAvg, dayNutrition, allMeals, eligible, fixBatches } from '../engines/planner.js';
 import { evaluateRecipe, hasWarning } from '../engines/coach.js';
-import { STORES, storeById } from '../data/stores.js';
+import { STORES, storeById, priceMult } from '../data/stores.js';
 import { newList, cookedSlots, listStats } from '../engines/grocery.js';
 import { prepSheet, STORAGE_TIP } from '../engines/prep.js';
 import { buildICS, googleCalendarLink, outlookCalendarLink } from '../lib/calendar.js';
@@ -142,7 +142,7 @@ function mealsTab(plan) {
     const r = recipeById(m.rid);
     if (!r) return null;
     const warns = evaluateRecipe(r).filter((n) => n.level === 'warn');
-    const mealCost = r.d.cost * m.servings * storeById(plan.store).mult;
+    const mealCost = r.d.cost * m.servings * priceMult(plan.store);
     return h('div.slot' + (m.done ? '.done' : ''), {},
       h('a', { href: `#/recipe/${r.id}`, 'aria-label': `Open ${r.n}` }, thumb(r, 'sq')),
       h('div.grow.stack.sm', { style: { gap: '4px' } },

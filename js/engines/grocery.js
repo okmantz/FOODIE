@@ -6,7 +6,7 @@
 import { INGREDIENTS, AISLE_ORDER } from '../data/ingredients.js';
 import { recipeById } from '../store.js';
 import { scale } from './nutrition.js';
-import { storeById } from '../data/stores.js';
+import { storeById, priceMult } from '../data/stores.js';
 import { fmtQty, fmtPack } from '../lib/units.js';
 import { uid, money, parseISO, fmtDay, isoDate } from '../lib/util.js';
 
@@ -29,9 +29,10 @@ export function aggregate(slots) {
   return { ing, custom };
 }
 
-export const pantryTotals = (pantry) => {
+/** What you can actually cook with: expired items don't count, so the list tells you to rebuy them. */
+export const pantryTotals = (pantry, asOf = isoDate()) => {
   const m = new Map();
-  for (const p of pantry) if (p.ing && INGREDIENTS[p.ing]) m.set(p.ing, (m.get(p.ing) || 0) + (+p.qty || 0));
+  for (const p of pantry) if (p.ing && INGREDIENTS[p.ing] && !(p.expires && p.expires < asOf)) m.set(p.ing, (m.get(p.ing) || 0) + (+p.qty || 0));
   return m;
 };
 
@@ -96,7 +97,7 @@ export function itemCost(item, mult = 1) {
 }
 
 export function listStats(list, planSlots = null) {
-  const mult = storeById(list.store).mult;
+  const mult = priceMult(list.store);
   const real = list.items.filter((i) => !i.have);
   const total = real.reduce((a, i) => a + itemCost(i, mult), 0);
   const all = list.items;

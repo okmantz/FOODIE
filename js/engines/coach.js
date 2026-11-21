@@ -4,11 +4,11 @@
  * friendly tone. It never blocks anything: every suggestion can be overridden.
  */
 import { state, allRecipes, recipeById, isFav, meta, activePlan } from '../store.js';
-import { DIET_LABEL, ALLERGEN_LABEL, dietCulprits, currentSeason } from './nutrition.js';
+import { DIET_LABEL, ALLERGEN_LABEL, dietCulprits, currentSeason, dailyCalories } from './nutrition.js';
 import { eligible, violations, planCost, mealsOn, SLOT_LABEL } from './planner.js';
 import { pantryTotals } from './grocery.js';
 import { INGREDIENTS } from '../data/ingredients.js';
-import { storeById } from '../data/stores.js';
+import { storeById, priceMult } from '../data/stores.js';
 import { today, diffDays, addDays, startOfWeek, sum, fmtMins } from '../lib/util.js';
 
 const SHARE = { breakfast: 0.25, lunch: 0.3, dinner: 0.35, snack: 0.1, dessert: 0.1, smoothie: 0.2 };
@@ -24,7 +24,7 @@ export function evaluateRecipe(r, { servings = null } = {}) {
   }
   if (r.d.unverified) out.push({ level: 'note', text: 'This recipe has custom ingredients FOODIE can\'t analyze, so allergen and diet checks may be incomplete.' });
   const kcal = r.d.nut.kcal;
-  const cal = +p.calories;
+  const cal = dailyCalories(p);
   const share = SHARE[r.t] || 0.3;
   if (cal) {
     const target = cal * share;
@@ -33,7 +33,7 @@ export function evaluateRecipe(r, { servings = null } = {}) {
   } else if (p.goal === 'lose' && kcal > 700) out.push({ level: 'note', text: `At roughly ${Math.round(kcal)} kcal a serving, this one is on the hearty side for a weight-loss goal. Adding veggies or a half portion keeps it in range.` });
   if (p.goal === 'gain' && r.d.nut.pro < 20 && ['breakfast', 'lunch', 'dinner'].includes(r.t)) out.push({ level: 'note', text: `Only ${Math.round(r.d.nut.pro)} g protein per serving — adding eggs, yogurt or a lean protein would help your muscle-gain goal.` });
   const perMeal = p.weeklyBudget ? p.weeklyBudget / (7 * 3 * (p.household || 1)) : null;
-  if (perMeal && r.d.cost * storeById(p.store).mult > perMeal * 1.6) out.push({ level: 'note', text: `Roughly $${(r.d.cost * storeById(p.store).mult).toFixed(2)} per serving — above your usual per-meal budget.` });
+  if (perMeal && r.d.cost * priceMult(p.store) > perMeal * 1.6) out.push({ level: 'note', text: `Roughly $${(r.d.cost * priceMult(p.store)).toFixed(2)} per serving — above your usual per-meal budget.` });
   if (!out.length) {
     const goods = [];
     if (r.d.nut.pro >= 25) goods.push('protein-rich');

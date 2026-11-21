@@ -1,4 +1,5 @@
 /* Small DOM + formatting helpers shared by every module. */
+import { swapEmoji } from './icons.js';
 
 export const $ = (sel, root = document) => root.querySelector(sel);
 export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -30,7 +31,14 @@ export function h(tag, attrs, ...kids) {
   const add = (k) => {
     if (k == null || k === false) return;
     if (Array.isArray(k)) k.forEach(add);
-    else el.append(k instanceof Node ? k : document.createTextNode(String(k)));
+    else if (k instanceof Node) el.append(k);
+    else {
+      // interface emoji/symbols become consistent SVG icons; `.food` elements (recipe art) are left alone
+      const str = String(k);
+      const parts = el.classList.contains('food') ? null : swapEmoji(str);
+      if (parts) parts.forEach((p) => el.append(p instanceof Node ? p : document.createTextNode(p)));
+      else el.append(document.createTextNode(str));
+    }
   };
   kids.forEach(add);
   return el;

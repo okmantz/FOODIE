@@ -57,8 +57,22 @@ export const DISH_IDEAS = {
 
 /** Map OpenStreetMap `cuisine=*` values to FOODIE cuisines. */
 export const OSM_CUISINE_MAP = {
-  italian: 'Italian', pizza: 'Italian', pasta: 'Italian', mexican: 'Mexican', tacos: 'Mexican', thai: 'Thai', indian: 'Indian', japanese: 'Japanese',
-  sushi: 'Japanese', ramen: 'Japanese', chinese: 'Chinese', korean: 'Korean', mediterranean: 'Mediterranean', greek: 'Greek', lebanese: 'Middle Eastern',
-  turkish: 'Middle Eastern', kebab: 'Middle Eastern', middle_eastern: 'Middle Eastern', arab: 'Middle Eastern', french: 'French', american: 'American',
-  burger: 'American', bbq: 'American', barbecue: 'American', steak_house: 'American', sandwich: 'American', chicken: 'American', seafood: 'Mediterranean',
+  italian: 'Italian', pizza: 'Italian', pasta: 'Italian', mexican: 'Mexican', tacos: 'Mexican', taco: 'Mexican', burrito: 'Mexican', tex_mex: 'Mexican', thai: 'Thai', indian: 'Indian', curry: 'Indian',
+  japanese: 'Japanese', sushi: 'Japanese', ramen: 'Japanese', udon: 'Japanese', izakaya: 'Japanese', chinese: 'Chinese', dim_sum: 'Chinese', noodle: 'Chinese', dumplings: 'Chinese', szechuan: 'Chinese',
+  korean: 'Korean', korean_bbq: 'Korean', mediterranean: 'Mediterranean', spanish: 'Mediterranean', tapas: 'Mediterranean', greek: 'Greek', gyro: 'Greek', lebanese: 'Middle Eastern',
+  turkish: 'Middle Eastern', kebab: 'Middle Eastern', shawarma: 'Middle Eastern', falafel: 'Middle Eastern', middle_eastern: 'Middle Eastern', arab: 'Middle Eastern', persian: 'Middle Eastern', french: 'French', crepe: 'French',
+  bistro: 'French', american: 'American', burger: 'American', bbq: 'American', barbecue: 'American', steak_house: 'American', steak: 'American', sandwich: 'American', chicken: 'American', wings: 'American',
+  breakfast: 'American', brunch: 'American', diner: 'American', regional: 'American', seafood: 'Mediterranean', coffee_shop: 'Café',
 };
+/** Flavor notes for cuisines FOODIE has no quiz questions for, so they still rank sensibly. */
+export const EXTRA_FLAVORS = {
+  Café: ['light', 'sweet'], Vietnamese: ['fresh', 'umami', 'light'], vietnamese: ['fresh', 'umami', 'light'], Caribbean: ['spicy', 'sweet', 'hearty'], caribbean: ['spicy', 'sweet', 'hearty'],
+  Ethiopian: ['spicy', 'hearty'], ethiopian: ['spicy', 'hearty'], Asian: ['umami', 'savory'], asian: ['umami', 'savory'], Vegan: ['fresh', 'light'], vegan: ['fresh', 'light'], vegetarian: ['fresh', 'light'],
+  Peruvian: ['fresh', 'tangy'], peruvian: ['fresh', 'tangy'], latin_american: ['hearty', 'smoky'], salad: ['fresh', 'light'], 'Fast food': ['hearty', 'savory'], Restaurant: [],
+};
+
+// Typical-dish hints for cuisines outside the main twelve (shown with a "typical for this cuisine" label, never as a real menu).
+DISH_IDEAS['Café'] = [d('Breakfast sandwich', 0, '', ['savory', 'hearty'], []), d('Avocado toast', 0, '', ['fresh', 'light'], ['vegetarian']), d('Soup & half sandwich', 0, '', ['light', 'savory'], [])];
+DISH_IDEAS['Fast food'] = [d('Grilled chicken sandwich', 0, '', ['hearty', 'savory'], []), d('Side salad or fruit cup', 0, '', ['fresh', 'light'], ['vegetarian']), d('Bean burrito or veggie option', 0, '', ['hearty'], ['vegetarian'])];
+DISH_IDEAS.Vietnamese = [d('Pho', 0, '', ['umami', 'light'], []), d('Banh mi', 0, '', ['tangy', 'savory'], []), d('Fresh spring rolls', 0, '', ['fresh', 'light'], ['pescatarian'])];
+DISH_IDEAS.Caribbean = [d('Jerk chicken', 0, '', ['spicy', 'smoky'], []), d('Rice & peas', 0, '', ['hearty'], ['vegan']), d('Fried plantains', 0, '', ['sweet'], ['vegan'])];

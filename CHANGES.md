@@ -1,0 +1,29 @@
+# FOODIE 2.0 — what changed
+
+Paste the contents of this zip over the repo root (keep folder structure), commit, push. GitHub Pages needs no build.
+
+## Location (always current)
+- `js/lib/location.js` (new): live GPS via watchPosition + refresh on app focus, manual ZIP/city fallback, reverse geocoding, hemisphere + units set automatically.
+- `js/engines/places.js` (new): real restaurants, cafes and grocery stores from OpenStreetMap near you (progressive radius, cached, 3 mirrors), opening-hours parsing ("open now / closes at…").
+- `js/views/locationui.js` (new): location bar used in onboarding, Discover and Profile.
+
+## Restaurants right after the quiz
+- Quiz applies instantly; the final screen shows the best nearby matches, ranked by taste, open status, diet, distance and time of day. Retaking the quiz replaces the old taste weights instead of stacking.
+- Fictional sample restaurants are gone; only real nearby places are shown.
+
+## UI
+- `js/lib/icons.js` (new): one SVG icon set; UI emoji (thumbs-up, hearts, cart, pin…) swap to icons automatically. Food emoji stay as recipe art.
+- `css/styles.css`: calmer palette, hairline borders, refined buttons/cards/nav, mobile fixes (no iOS zoom on inputs, 2-column grids, safe areas).
+
+## Accuracy
+- Whole-word dislike matching with synonym groups; seasonal picks use the plan date and your hemisphere.
+- Calorie/protein targets normalised across the meals actually planned; calorie estimate from body stats (Mifflin-St Jeor) if you don't set a number.
+- Expired pantry items no longer count; prices = store tier × your local price adjustment (Profile slider).
+- Grocery: shows chains actually near you and lets you switch to one in a tap.
+
+## Recipes: 528 → 1,575
+- `js/data/recipes-more.js` (generated, 1,047 recipes) merged in `js/engines/nutrition.js`.
+- `tools/` holds the generator. Every recipe is validated against the ingredient DB (kcal range, protein, cost, steps) and food-safety temperatures.
+- `node tests/unit.mjs` checks counts, unique ids/names, ingredients and the new logic.
+
+Service worker bumped to `foodie-v2.0.0` so installed copies update.
