@@ -6,14 +6,25 @@ import { evaluateRecipe, hasWarning } from './engines/coach.js';
 import { learnFromRecipe } from './engines/taste.js';
 import { SLOTS, SLOT_LABEL, setMeal } from './engines/planner.js';
 import { storeById } from './data/stores.js';
+import { attachPhoto, fillCredit } from './lib/images.js';
 
 export const go = (hash) => { if (location.hash === hash) window.dispatchEvent(new HashChangeEvent('hashchange')); else location.hash = hash; };
 
 export function thumb(item, cls = '') {
   const seed = item.id || item.n || item.name || 'x';
   const hue = [28, 12, 48, 95, 140, 160, 8, 36, 340][hashStr(String(seed)) % 9];
-  const photo = item.photo;
-  return h('div.thumb' + (cls ? '.' + cls.split(' ').join('.') : '') + (photo ? '.photo' : ''), { style: { '--h': hue, ...(photo ? { backgroundImage: `url("${photo}")` } : {}) }, 'aria-hidden': 'true' }, photo ? null : h('span.e.food', {}, item.e || item.emoji || '🍽️'));
+  const photo = item.photo; // a photo the user attached to their own recipe always wins
+  const el = h('div.thumb' + (cls ? '.' + cls.split(' ').join('.') : '') + (photo ? '.photo' : ''), { style: { '--h': hue, ...(photo ? { backgroundImage: `url("${photo}")` } : {}) }, 'aria-hidden': 'true' }, photo ? null : h('span.e.food', {}, item.e || item.emoji || '🍽️'));
+  // Built-in recipes: look the photo up by permanent id. If the manifest has not arrived yet, mark the tile and it is upgraded in place.
+  if (!photo && item.id && !item.custom) { el.dataset.pid = item.id; el.dataset.pn = item.n || ''; attachPhoto(el, item.id, item.n); }
+  return el;
+}
+
+/** Small attribution line shown under a recipe's hero photo (filled once the photo manifest is loaded). */
+export function photoCredit(item) {
+  const el = h('p.photo-credit.small.muted', { hidden: true });
+  if (item.id && !item.custom && !item.photo) { el.dataset.credit = item.id; fillCredit(el, item.id); }
+  return el;
 }
 
 export const stars = (n) => h('span.stars', { role: 'img', 'aria-label': n ? `${n} out of 5 stars` : 'Not rated' }, [1, 2, 3, 4, 5].map((i) => h('span' + (i <= Math.round(n) ? '' : '.off'), {}, '★')));
