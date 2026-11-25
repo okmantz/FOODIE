@@ -1,0 +1,23 @@
+// Tests for the AI photo generator: prompt quality for every recipe, determinism, and the quality gate.
+import sharp from 'sharp';
+import { loadRecipes } from '../tools/images/recipes.mjs';
+import { buildPrompt, seedFor, heroIngredients } from '../tools/images/prompt.mjs';
+import { looksLikeFood } from '../tools/images/generate.mjs';
+let bad = 0; const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) bad++; };
+const recipes = loadRecipes();
+const prompts = recipes.map((r) => [r, buildPrompt(r)]);
+ok(prompts.every(([r, p]) => p.includes(r.n)), `all ${recipes.length} prompts name their dish`);
+ok(prompts.every(([, p]) => p.length < 900 && !p.includes('"')), 'prompts are short and contain no quote marks (models paint quoted words)');
+ok(prompts.every(([r, p]) => !/\b(salt|water)\b/i.test(p.split('Made with')[1]?.split('.')[0] || '')), 'pantry basics are not listed as visible ingredients');
+ok(prompts.every(([r]) => heroIngredients(r.ing).length >= 1), 'every recipe has at least one visible ingredient');
+ok(new Set(prompts.map(([, p]) => p)).size === recipes.length, 'every recipe gets a distinct prompt');
+ok(prompts.filter(([r, p]) => r.t === 'smoothie').every(([, p]) => /glass/.test(p)), 'smoothies are served in a glass');
+ok(prompts.filter(([r, p]) => r.t === 'dessert' || r.t === 'smoothie').every(([, p]) => !/herb garnish/.test(p)), 'no herb garnish on desserts / smoothies');
+ok(seedFor('a') === seedFor('a') && seedFor('a') !== seedFor('a', 1) && seedFor('a') !== seedFor('b'), 'seeds are stable, per-recipe and re-rollable');
+const flat = await sharp({ create: { width: 1200, height: 800, channels: 3, background: '#808080' } }).jpeg().toBuffer();
+const noisy = await sharp(Buffer.from(Array.from({ length: 600 * 400 * 3 }, (_, i) => (i * 7919 % 251))), { raw: { width: 600, height: 400, channels: 3 } }).jpeg().toBuffer();
+const tiny = await sharp({ create: { width: 200, height: 200, channels: 3, background: '#fff' } }).jpeg().toBuffer();
+ok((await looksLikeFood(flat)) !== null, 'gate rejects a blank image');
+ok((await looksLikeFood(tiny)) === 'too small', 'gate rejects a thumbnail-sized image');
+ok((await looksLikeFood(noisy)) === null, 'gate accepts a detailed image');
+console.log(bad ? `\n${bad} FAILED` : '\nAll generator tests passed'); process.exit(bad ? 1 : 0);
