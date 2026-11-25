@@ -2,7 +2,8 @@
 import { INGREDIENTS } from '../js/data/ingredients.js';
 import { BUILTIN_RECIPES as BASE_RECIPES } from '../js/data/recipes.js';
 import { MORE_RECIPES } from '../js/data/recipes-more.js';
-const BUILTIN_RECIPES = [...BASE_RECIPES, ...MORE_RECIPES];
+import { WORLD_RECIPES } from '../js/data/recipes-world.js';
+const BUILTIN_RECIPES = [...BASE_RECIPES, ...MORE_RECIPES, ...WORLD_RECIPES];
 let bad = 0; const fail = (m) => { console.error('FAIL', m); bad++; };
 const TYPES = ['breakfast', 'lunch', 'dinner', 'dessert', 'snack', 'smoothie'];
 const ids = new Set();
@@ -30,7 +31,7 @@ for (const [id, g] of Object.entries(INGREDIENTS)) {
   const est = 4 * pro + 4 * (carb - (fiber || 0)) + 2 * (fiber || 0) + 9 * fat;
   if (!ATWATER_OK.has(id) && kcal > 20 && Math.abs(est - kcal) > Math.max(45, kcal * 0.3)) fail(`${id}: kcal ${kcal} vs Atwater ${Math.round(est)}`);
 }
-if (BUILTIN_RECIPES.length < 1500) fail(`expected 1500+ recipes, found ${BUILTIN_RECIPES.length}`);
+if (BUILTIN_RECIPES.length < 2000) fail(`expected 2000+ recipes, found ${BUILTIN_RECIPES.length}`);
 console.log(`${BUILTIN_RECIPES.length} recipes, ${Object.keys(INGREDIENTS).length} ingredients checked`);
 
 // ---- logic checks (need a localStorage stub because the engines import the store) ----
