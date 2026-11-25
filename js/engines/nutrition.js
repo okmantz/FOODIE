@@ -7,6 +7,7 @@
 import { INGREDIENTS, ALLERGENS } from '../data/ingredients.js';
 import { BUILTIN_RECIPES } from '../data/recipes.js';
 import { MORE_RECIPES } from '../data/recipes-more.js';
+import { WORLD_RECIPES } from '../data/recipes-world.js';
 
 const ANIMAL = ['M', 'F', 'S', 'D', 'E', 'H'];
 export const DIETS = [
@@ -88,7 +89,7 @@ export function enrich(r) {
   return out;
 }
 
-export const BUILTIN = [...BUILTIN_RECIPES, ...MORE_RECIPES].map(enrich);
+export const BUILTIN = [...BUILTIN_RECIPES, ...MORE_RECIPES, ...WORLD_RECIPES].map(enrich);
 
 /** Scale factor for cooking `servings` of a recipe. */
 export const scale = (r, servings) => servings / (r.s || 1);
@@ -135,12 +136,20 @@ export function bodyEstimate(profile) {
 }
 export const dailyCalories = (profile) => +profile.calories || bodyEstimate(profile)?.target || 0;
 
-export const CUISINES = ['American', 'Italian', 'Mexican', 'Thai', 'Indian', 'Japanese', 'Chinese', 'Korean', 'Mediterranean', 'Greek', 'Middle Eastern', 'French'];
+export const CUISINES = ['American', 'Italian', 'Mexican', 'Thai', 'Indian', 'Japanese', 'Chinese', 'Korean', 'Mediterranean', 'Greek', 'Middle Eastern', 'French',
+  'Vietnamese', 'Filipino', 'Indonesian', 'Malaysian', 'Southeast Asian', 'Taiwanese', 'Pakistani', 'Sri Lankan', 'Nepali', 'Turkish', 'Persian', 'Israeli', 'Moroccan', 'Ethiopian', 'West African', 'East African', 'South African',
+  'Peruvian', 'Brazilian', 'Argentinian', 'Colombian', 'Venezuelan', 'Cuban', 'Caribbean', 'Spanish', 'Portuguese', 'German', 'Eastern European', 'Georgian', 'British', 'Scandinavian', 'Hawaiian', 'Cajun & Creole', 'Southern US'];
 
 /** Flavor profile inferred from cuisine (used for taste learning). */
 export const CUISINE_FLAVORS = {
   American: ['hearty', 'smoky'], Italian: ['hearty', 'creamy', 'tangy'], Mexican: ['spicy', 'tangy', 'fresh'], Thai: ['spicy', 'fresh', 'sweet'],
   Indian: ['spicy', 'creamy', 'hearty'], Japanese: ['umami', 'fresh', 'light'], Chinese: ['umami', 'savory', 'sweet'], Korean: ['spicy', 'umami', 'smoky'],
   Mediterranean: ['fresh', 'tangy', 'light'], Greek: ['fresh', 'tangy', 'hearty'], 'Middle Eastern': ['smoky', 'fresh', 'tangy'], French: ['creamy', 'hearty', 'savory'],
+  Vietnamese: ['fresh', 'umami', 'light'], Filipino: ['savory', 'tangy', 'hearty'], Indonesian: ['spicy', 'sweet', 'savory'], Malaysian: ['spicy', 'creamy', 'fresh'], 'Southeast Asian': ['fresh', 'spicy', 'tangy'], Taiwanese: ['umami', 'savory', 'sweet'],
+  Pakistani: ['spicy', 'hearty', 'creamy'], 'Sri Lankan': ['spicy', 'creamy', 'fresh'], Nepali: ['savory', 'spicy', 'light'], Turkish: ['smoky', 'fresh', 'hearty'], Persian: ['tangy', 'sweet', 'hearty'], Israeli: ['fresh', 'tangy', 'light'],
+  Moroccan: ['sweet', 'smoky', 'hearty'], Ethiopian: ['spicy', 'hearty', 'smoky'], 'West African': ['spicy', 'hearty', 'savory'], 'East African': ['hearty', 'savory', 'smoky'], 'South African': ['sweet', 'smoky', 'hearty'],
+  Peruvian: ['tangy', 'fresh', 'umami'], Brazilian: ['hearty', 'smoky', 'creamy'], Argentinian: ['smoky', 'savory', 'fresh'], Colombian: ['hearty', 'savory', 'fresh'], Venezuelan: ['hearty', 'savory', 'sweet'], Cuban: ['tangy', 'savory', 'hearty'], Caribbean: ['spicy', 'sweet', 'smoky'],
+  Spanish: ['savory', 'smoky', 'fresh'], Portuguese: ['tangy', 'savory', 'hearty'], German: ['hearty', 'savory', 'tangy'], 'Eastern European': ['hearty', 'creamy', 'tangy'], Georgian: ['creamy', 'savory', 'hearty'], British: ['hearty', 'savory', 'creamy'],
+  Scandinavian: ['light', 'fresh', 'creamy'], Hawaiian: ['sweet', 'umami', 'fresh'], 'Cajun & Creole': ['spicy', 'smoky', 'hearty'], 'Southern US': ['hearty', 'smoky', 'savory'],
 };
 export const FLAVORS = ['spicy', 'creamy', 'fresh', 'hearty', 'smoky', 'tangy', 'umami', 'light', 'sweet', 'savory'];
