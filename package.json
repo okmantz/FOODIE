@@ -1,1 +1,22 @@
-{ "name": "foodie", "version": "2.0.0", "private": true, "type": "module", "description": "FOODIE - local-first meal planner (static site, no build step)", "scripts": { "start": "python3 -m http.server 8080", "test": "node tests/unit.mjs", "recipes": "node tools/generate-recipes.mjs" } }
+{
+  "name": "foodie",
+  "version": "2.1.0",
+  "private": true,
+  "type": "module",
+  "description": "FOODIE - local-first meal planner (static site, no build step)",
+  "scripts": {
+    "start": "python3 -m http.server 8080",
+    "test": "node tests/unit.mjs",
+    "recipes": "node tools/generate-recipes.mjs",
+    "images": "node tools/images/run.mjs",
+    "images:acquire": "node tools/images/acquire.mjs",
+    "images:build": "node tools/images/build.mjs",
+    "images:review": "node tools/images/review.mjs generate",
+    "images:apply": "node tools/images/review.mjs apply && node tools/images/build.mjs",
+    "images:verify": "node tools/images/verify.mjs",
+    "test:images": "node tests/images.mjs"
+  },
+  "devDependencies": {
+    "sharp": "^0.35.0"
+  }
+}

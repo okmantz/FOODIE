@@ -1,3 +1,13 @@
+# FOODIE 2.1 — recipe photography
+
+Adds real photographs to recipes (pipeline + app integration). **No photos are bundled yet** — run `npm run images` (see README → Recipe photos); until then every recipe keeps its emoji tile, so nothing changes visually.
+
+- `tools/images/` (new): resumable acquire → optimise → manifest → verify pipeline; Wikimedia Commons + Openverse; CC0 / public domain / CC BY only (CC BY-SA opt-in); relevance scoring with a review queue instead of guessing.
+- `assets/recipes/manifest.json` (new): recipe id → image, colour placeholder, source, photographer, licence.
+- `js/lib/images.js` (new) + `js/ui.js` `thumb()`: photos on cards, lists, plan, favourites, dashboard and recipe pages; lazy loading, responsive hero (`srcset`), fade-in over a tinted placeholder, hover zoom, graceful emoji fallback; attribution under the hero photo.
+- `sw.js`: separate immutable cache for photos (cache-first, capped at 800, survives app-version bumps) so viewed photos work offline. `VERSION` → `foodie-v2.1.0`.
+- `tests/images.mjs`, `npm run images:verify`: pipeline tests and the coverage/duplicate/licence/mismatch verifier.
+
 # FOODIE 2.0 — what changed
 
 Paste the contents of this zip over the repo root (keep folder structure), commit, push. GitHub Pages needs no build.

@@ -39,7 +39,7 @@ FOODIE is deliberately honest about its limits.
 - **Live restaurant menus, availability, ordering or delivery status.** The "Sample" restaurants shipped with the app are **fictional** examples so the app is usable offline; they are labeled as such. Ordering is a link to the restaurant's site, or a delivery-app search.
 - **Nutrition is calculated** from typical per-ingredient values, not lab-tested; it's an estimate. **Allergen flags are best-effort** — always read labels and use your own judgment for medical allergies.
 - **The Coach is a transparent set of rules** running in your browser, not an AI model, and nothing is sent anywhere.
-- **Food images:** recipe "photos" are generated emoji tiles. No stock photography is bundled (licensing); you can add your own photo to any recipe you create.
+- **Food images:** every built-in recipe shows a real, properly licensed photograph **once you have run the photo pipeline** (see *Recipe photos* below); until a recipe has an approved photo it shows its emoji tile. Photos are never matched by guesswork: anything the matcher is not sure about goes to a review queue instead of getting an unrelated picture. You can also add your own photo to any recipe you create.
 
 ## Privacy
 
@@ -60,6 +60,21 @@ python3 -m http.server 8080      # or: npm start
 
 No build step, no dependencies.
 
+## Recipe photos
+
+Photos are a build-time pipeline; the app itself stays a static site with no runtime APIs. Photo files live in `assets/recipes/` (`t/` 480×320 thumbnails, `f/` 1200×800 detail images, all WebP) and are mapped to recipes by **permanent recipe id** in `assets/recipes/manifest.json` (with source URL, photographer and licence). Credits are listed in [docs/IMAGE-CREDITS.md](docs/IMAGE-CREDITS.md) and under each recipe's hero photo.
+
+```bash
+npm install                 # installs sharp (image tooling only — the app itself has no dependencies)
+npm run images              # search → download → optimise → build manifest → verify   (add -- --limit 200 for a first batch)
+npm run images:review       # builds tools/images/review/index.html: confirm uncertain matches in a browser
+npm run images:apply        # applies your decisions (tools/images/data/decisions.json) and rebuilds
+npm run images:verify       # coverage, broken files, duplicates, licences, photo/recipe mismatches
+npm run test:images         # pipeline tests (no network)
+```
+
+Details, licence rules, API keys and troubleshooting: [docs/IMAGE-PIPELINE.md](docs/IMAGE-PIPELINE.md). Commit `assets/recipes/`, `docs/IMAGE-CREDITS.md` and `tools/images/data/state.json`; bump `VERSION` in `sw.js` after a large photo update.
+
 ## Deploy to GitHub Pages
 
 1. Push this repo to GitHub (branch `main`).
@@ -73,9 +88,9 @@ All paths are relative, so it works under any `/<repo>/` subpath. If you update 
 ```
 index.html            entry page
 manifest.webmanifest  PWA manifest
-sw.js                 offline cache (service worker)
+sw.js                 offline cache (service worker; separate cache for recipe photos)
 css/styles.css        design system (light/dark, mobile-first)
-assets/               Coach image + icons
+assets/               Coach image + icons; recipes/ = photos + manifest.json
 js/
   main.js, app.js     boot, router, shell, Coach drawer, onboarding
   store.js            central state + localStorage persistence
