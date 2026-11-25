@@ -5,9 +5,12 @@ import { USER_AGENT } from './config.mjs';
 const fail = (msg, status, fatal = false, retryAfter = 0) => Object.assign(new Error(msg), { status, fatal, retryAfter });
 async function bytesOrThrow(res, what) {
   if (res.ok) return Buffer.from(await res.arrayBuffer());
-  const body = (await res.text().catch(() => '')).slice(0, 200).replace(/\s+/g, ' ');
-  const fatal = [401, 402, 403].includes(res.status);
-  throw fail(`${what}: HTTP ${res.status} ${body}`, res.status, fatal, +res.headers.get('retry-after') || 0);
+  const body = (await res.text().catch(() => '')).slice(0, 300).replace(/\s+/g, ' ');
+  // Rate limits are "wait and retry", not failures. Pollinations answers its free-tier limit with HTTP 402 + FREE_LIMIT.
+  const rateLimited = res.status === 429 || (res.status === 402 && /FREE_LIMIT|limit reached|retry after/i.test(body));
+  const fatal = !rateLimited && [401, 402, 403].includes(res.status);
+  const retryAfter = +res.headers.get('retry-after') || +((/retry after (\d+)\s*s/i.exec(body) || [])[1]) || 0;
+  throw Object.assign(fail(`${what}: HTTP ${res.status} ${body}`, res.status, fatal, retryAfter), { rateLimited });
 }
 
 // ---- Pollinations (FLUX, no account needed for light use; an optional key raises limits) ----

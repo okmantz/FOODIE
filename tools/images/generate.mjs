@@ -37,8 +37,11 @@ async function main() {
   if (args.prompts) { for (const r of recipes.slice(0, +args.prompts || 5)) console.log(`\n# ${r.id}\n${buildPrompt(r)}`); return; }
 
   const only = args.only ? new Set(String(args.only).split(',')) : null;
-  const limit = +args.limit || Infinity; const conc = Math.max(1, +args.concurrency || 2);
-  const minGap = +(args['min-gap'] ?? (provName === 'pollinations' ? 1500 : 0));
+  const limit = +args.limit || Infinity;
+  // Keyless Pollinations allows 1 image / 45 s per IP: go one at a time and keep just inside that limit.
+  const keyless = provName === 'pollinations' && !process.env.POLLINATIONS_API_KEY;
+  const conc = Math.max(1, +args.concurrency || (keyless ? 1 : 2));
+  const minGap = +(args['min-gap'] ?? (keyless ? 46000 : provName === 'pollinations' ? 1500 : 0));
   const deadline = args['max-minutes'] ? Date.now() + (+args['max-minutes']) * 60000 : Infinity;
   fs.mkdirSync(path.join(ASSET_DIR, 't'), { recursive: true }); fs.mkdirSync(path.join(ASSET_DIR, 'f'), { recursive: true });
   const manifest = readJson(MANIFEST_FILE, null) || { version: 1, base: 'assets/recipes/', sizes: { thumb: [SIZES.thumb.w, SIZES.thumb.h], full: [SIZES.full.w, SIZES.full.h] }, images: {} };
@@ -57,7 +60,7 @@ async function main() {
       if (Date.now() > deadline) { stop = 'time budget reached'; break; }
       if (started >= limit || !todo.length) break;
       const r = todo.shift(); started++;
-      const prompt = buildPrompt(r); let done = false, why = '';
+      const prompt = buildPrompt(r); let done = false, why = '', waits = 0;
       for (let attempt = 0; attempt < 4 && !done && !stop; attempt++) {
         try {
           const gap = Math.max(0, nextAt - Date.now()); nextAt = Math.max(nextAt, Date.now()) + minGap; if (gap) await sleep(gap);
@@ -71,8 +74,8 @@ async function main() {
         } catch (e) {
           why = e.message;
           if (e.fatal) { stop = `provider refused: ${e.message}`; break; }
-          const wait = e.status === 429 ? Math.max(e.retryAfter * 1000, 15000 * (attempt + 1)) : 4000 * (attempt + 1);
-          await sleep(wait);
+          if (e.rateLimited && waits++ < 15) { await sleep((e.retryAfter || 45) * 1000 + 1500); attempt--; continue; } // rate limit: wait it out, does not use up an attempt
+          await sleep(4000 * (attempt + 1));
         }
       }
       if (!done && !stop) { failed++; console.warn(`\n  ${r.id}: gave up (${why})`); }
