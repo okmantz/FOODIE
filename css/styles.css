@@ -393,3 +393,15 @@ input[type=text], input[type=number], input[type=search], input[type=date], inpu
 @keyframes ph-shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
 @media (prefers-reduced-motion: reduce) { .thumb.has-img:not(.loaded)::after { animation: none; } .thumb .ph { transition: opacity .01ms; transform: none; } }
 @media print { .thumb .ph { opacity: 1 !important; } }
+
+/* ---- 2.2 polish: cleaner placeholder tile, photo-shaped cards ---- */
+/* The old white "ball" behind the emoji read as a grey sphere in dark mode. Make it a soft glow instead. */
+.thumb::before { box-shadow: none; background: radial-gradient(circle at 50% 46%, rgba(255,255,255,.6), rgba(255,255,255,.2) 60%, transparent 72%); }
+:root[data-theme="dark"] .thumb::before { background: radial-gradient(circle at 50% 46%, rgba(255,255,255,.13), rgba(255,255,255,.04) 62%, transparent 74%); }
+@media (prefers-color-scheme: dark) { :root[data-theme="auto"] .thumb::before { background: radial-gradient(circle at 50% 46%, rgba(255,255,255,.13), rgba(255,255,255,.04) 62%, transparent 74%); } }
+/* Photos are 3:2, so cards use 3:2 and show the whole picture (shorter cards = more recipes per screen). */
+.rcard .thumb { aspect-ratio: 3 / 2; }
+/* Hairline edge so light photos don't bleed into light cards, and a soft shade that lifts any overlaid badge. */
+.thumb.has-img { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .06); }
+.thumb.has-img.loaded::after { display: block; content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none; background: linear-gradient(to bottom, rgba(0,0,0,.10), transparent 30%, transparent 70%, rgba(0,0,0,.08)); }
+.photo-credit { margin: 8px 2px 0; font-size: .78rem; }
