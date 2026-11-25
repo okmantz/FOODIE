@@ -377,3 +377,19 @@ input[type=text], input[type=number], input[type=search], input[type=date], inpu
 .locbar > .row.between > .row:last-child { margin-left: auto; }
 .loc-title { white-space: normal; }
 .loc-dot { align-self: flex-start; }
+
+/* ===== Recipe photography (see js/lib/images.js) =====
+   The emoji tile is the placeholder/fallback; a photo fades in over a tinted, shimmering block. */
+.thumb.has-img { background: var(--pc, #e8e3d6); }
+.thumb.has-img .e, .thumb.has-img::before, .thumb.has-img::after { display: none; }
+.thumb.has-img:not(.loaded)::after { display: block; content: ""; position: absolute; inset: 0; z-index: 0; background: linear-gradient(100deg, transparent 20%, rgba(255,255,255,.38) 50%, transparent 80%); background-size: 220% 100%; animation: ph-shimmer 1.4s linear infinite; }
+.thumb .ph { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transform: scale(1.015); transition: opacity .45s ease, transform .6s cubic-bezier(.2, .8, .2, 1); z-index: 1; border-radius: inherit; }
+.thumb.loaded .ph { opacity: 1; transform: none; }
+.rcard:hover .thumb.loaded .ph, .slot:hover .thumb.loaded .ph, .meal-row:hover .thumb.loaded .ph { transform: scale(1.05); }
+.thumb.hero.has-img { box-shadow: var(--shadow-lg); }
+.thumb.sm .ph { border-radius: 14px; }
+.photo-credit { margin: 0; font-size: .74rem; line-height: 1.3; } .photo-credit a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.thumb.img-failed .e { display: block; }
+@keyframes ph-shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+@media (prefers-reduced-motion: reduce) { .thumb.has-img:not(.loaded)::after { animation: none; } .thumb .ph { transition: opacity .01ms; transform: none; } }
+@media print { .thumb .ph { opacity: 1 !important; } }
