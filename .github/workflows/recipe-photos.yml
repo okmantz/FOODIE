@@ -1,0 +1,78 @@
+name: Generate recipe photos
+
+# Manual only: Actions tab -> "Generate recipe photos" -> Run workflow.
+# Generates a matching photo for every recipe that does not have one yet, optimises it to WebP and commits
+# the files + assets/recipes/manifest.json back to the branch in batches. Safe to run again and again:
+# recipes that already have a photo are skipped, so just re-run until the summary says REMAINING=0.
+# This does NOT touch GitHub Pages settings; Pages keeps deploying from the branch as before.
+
+on:
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: Image provider (needs the matching secret unless pollinations)
+        type: choice
+        default: pollinations
+        options: [pollinations, cloudflare, openai]
+      per_batch:
+        description: Photos per commit (each commit redeploys Pages once)
+        default: '150'
+      max_minutes:
+        description: Stop cleanly after this many minutes (job limit is 360)
+        default: '320'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: recipe-photos
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    env:
+      # Optional secrets (Settings -> Secrets and variables -> Actions). Only the chosen provider's are used.
+      POLLINATIONS_API_KEY: ${{ secrets.POLLINATIONS_API_KEY }}
+      CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Generate in batches, committing after each
+        shell: bash
+        run: |
+          set -uo pipefail
+          START=$(date +%s); BUDGET=$(( ${{ inputs.max_minutes }} * 60 ))
+          git config user.name "foodie-photos[bot]"; git config user.email "actions@users.noreply.github.com"
+          status=0
+          while true; do
+            LEFT=$(( BUDGET - ( $(date +%s) - START ) ))
+            [ "$LEFT" -lt 120 ] && { echo "Time budget used up; re-run the workflow to continue."; break; }
+            node tools/images/generate.mjs --provider "${{ inputs.provider }}" --limit "${{ inputs.per_batch }}" --max-minutes $(( LEFT / 60 )) | tee /tmp/gen.log
+            code=${PIPESTATUS[0]}
+            if [ -n "$(git status --porcelain assets/recipes)" ]; then
+              git add assets/recipes
+              git commit -m "Add generated recipe photos ($(grep -o 'REMAINING=[0-9]*' /tmp/gen.log | tail -1))"
+              git pull --rebase --autostash origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" || { echo "push failed"; status=1; break; }
+            fi
+            [ "$code" -ne 0 ] && { echo "Provider stopped the run (exit $code): check the key / quota, then re-run."; status=$code; break; }
+            grep -q 'REMAINING=0' /tmp/gen.log && { echo "All recipes have photos."; break; }
+          done
+          exit $status
+
+      - name: Rebuild credits and verify
+        if: always()
+        run: |
+          node tools/images/build.mjs || true
+          node tools/images/verify.mjs || true
+          if [ -n "$(git status --porcelain docs assets/recipes)" ]; then
+            git add docs assets/recipes && git commit -m "Update photo credits" && git pull --rebase --autostash origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" || true
+          fi
