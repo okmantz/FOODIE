@@ -1,7 +1,7 @@
 # FOODIE 2.2 — a photo for every recipe
 
 - `tools/images/generate.mjs`, `prompt.mjs`, `providers.mjs` (new): creates one matching, consistently styled photo per recipe from its own name / cuisine / ingredients (Pollinations, Cloudflare Workers AI or OpenAI); quality gate + de-duplication; resumable; writes the same WebP + manifest the app already uses. `npm run images:generate`.
-- `.github/workflows/recipe-photos.yml` (new): one-click **Actions → Generate recipe photos** that generates everything in GitHub's cloud and commits in batches. Manual trigger only; Pages deploy is unchanged.
+- `.github/workflows/recipe-photos.yml` (new): one-click, self-continuing **Actions → Generate recipe photos** that generates everything in GitHub's cloud and commits in batches. Manual trigger only; Pages deploy is unchanged.
 - `js/lib/images.js`: AI-generated photos are labelled honestly on the recipe page.
 - `tools/images/build.mjs`: no longer prunes AI-generated manifest entries.
 - `css/styles.css`: the white "ball" behind placeholder emoji (it looked like a grey sphere in dark mode) is now a soft glow; recipe cards use the photos' 3:2 shape so the whole picture shows and more cards fit per screen; hairline edge on photos.
