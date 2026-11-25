@@ -1,7 +1,7 @@
 /** Recipe library, detail page and recipe editor. */
 import { h, modal, toast, confirmDialog, download, uid, debounce, money, fmtMins, printHTML, esc, imageToDataURL, today, fmtDay, cap, round } from '../lib/util.js';
 import { state, commit, allRecipes, recipeById, isFav, meta, activeList } from '../store.js';
-import { thumb, recipeCard, chipGroup, seg, field, go, coachNotes, starInput, stars, toggleFavRecipe, addToPlanDialog, nutritionBar, sectionHead, dietBadges, notice } from '../ui.js';
+import { thumb, photoCredit, recipeCard, chipGroup, seg, field, go, coachNotes, starInput, stars, toggleFavRecipe, addToPlanDialog, nutritionBar, sectionHead, dietBadges, notice } from '../ui.js';
 import { DIETS, CUISINES, TYPE_LABEL, DIET_LABEL, ALLERGEN_LABEL, enrich, scale } from '../engines/nutrition.js';
 import { INGREDIENTS, ingredientList, ALLERGENS } from '../data/ingredients.js';
 import { fmtQty, unitLabel, toDisplayNum, fromDisplayNum } from '../lib/units.js';
@@ -94,7 +94,7 @@ export function renderRecipe(id) {
   const share = (kind) => ({ pdf: () => recipePDF(r, servings), print: () => printRecipe(r, servings), link: () => shareRecipe(r) }[kind])();
   const root = h('div.view.stack.lg', {},
     h('a.link.small', { href: '#/recipes' }, '← All recipes'),
-    h('div.r-hero', {}, r.photo ? thumb(r, 'hero') : thumb(r, 'hero'),
+    h('div.r-hero', {}, h('div.stack.sm', {}, thumb(r, 'hero'), photoCredit(r)),
       h('div.stack', {}, h('span.eyebrow', {}, `${r.c} · ${TYPE_LABEL[r.t]}${r.custom ? ' · My recipe' : ''}`), h('h1', {}, r.n),
         h('div.row', {}, m.rating ? stars(m.rating) : h('span.small.muted', {}, 'Not rated yet'), m.cooked ? h('span.badge', {}, `Cooked ${m.cooked}×`) : null, ...dietBadges(r, 4)),
         h('div', {}, factBox),
