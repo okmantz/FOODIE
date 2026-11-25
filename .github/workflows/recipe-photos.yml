@@ -1,25 +1,30 @@
 name: Generate recipe photos
 
 # Manual only: Actions tab -> "Generate recipe photos" -> Run workflow.
-# Generates a matching photo for every recipe that does not have one yet, optimises it to WebP and commits
-# the files + assets/recipes/manifest.json back to the branch in batches. Safe to run again and again:
-# recipes that already have a photo are skipped, so just re-run until the summary says REMAINING=0.
+#
+# FAST: the work is split into parallel SHARDS (default 10 jobs at once, each on its own machine and IP), and inside each
+# job every provider you have a key for runs side by side (provider "auto"). With a FAL_KEY (about $0.003/photo) the whole
+# library takes minutes; with no keys at all each shard uses the free anonymous Pollinations queue, so 10 shards are
+# ~10x faster than the old single job. The shards upload their photos as artifacts and ONE final job merges them and
+# commits (no merge conflicts, one Pages deploy). Safe to run again and again: recipes that already have a photo are skipped,
+# and if photos remain the final job starts the next run by itself.
+#
+# Optional repo secrets (Settings -> Secrets and variables -> Actions); every one you add becomes an extra parallel lane:
+#   FAL_KEY (fastest)  TOGETHER_API_KEY  CF_ACCOUNT_ID + CF_API_TOKEN  POLLINATIONS_API_KEY  OPENAI_API_KEY (only if provider names it)
 # This does NOT touch GitHub Pages settings; Pages keeps deploying from the branch as before.
 
 on:
   workflow_dispatch:
     inputs:
       provider:
-        description: Image provider (needs the matching secret unless pollinations)
-        type: choice
-        default: pollinations
-        options: [pollinations, cloudflare, openai]
-      per_batch:
-        description: Photos per commit (each commit redeploys Pages once)
-        default: '150'
+        description: "auto = every provider that has a key (+ free Pollinations). Or name one/more: fal, together, cloudflare, pollinations, openai, or e.g. fal,together"
+        default: auto
+      shards:
+        description: Parallel jobs (1-20). More shards = faster, especially without paid keys
+        default: '10'
       max_minutes:
-        description: Stop cleanly after this many minutes (job limit is 360)
-        default: '320'
+        description: Each shard stops cleanly after this many minutes (job limit is 360)
+        default: '300'
 
 permissions:
   contents: write
@@ -29,13 +34,35 @@ concurrency:
   group: recipe-photos
   cancel-in-progress: false
 
+env:
+  PROVIDER: ${{ inputs.provider }}
+  SHARDS: ${{ inputs.shards }}
+  MAX_MIN: ${{ inputs.max_minutes }}
+
 jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+      shards: ${{ steps.m.outputs.shards }}
+    steps:
+      - id: m
+        run: |
+          N=$(( ${SHARDS:-10} )); [ "$N" -lt 1 ] && N=1; [ "$N" -gt 20 ] && N=20
+          echo "shards=$N" >> "$GITHUB_OUTPUT"
+          echo "matrix={\"shard\":[$(seq -s, 0 $((N-1)))]}" >> "$GITHUB_OUTPUT"
+
   generate:
+    needs: plan
     runs-on: ubuntu-latest
     timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     env:
-      # Optional secrets (Settings -> Secrets and variables -> Actions). Only the chosen provider's are used.
       POLLINATIONS_API_KEY: ${{ secrets.POLLINATIONS_API_KEY }}
+      FAL_KEY: ${{ secrets.FAL_KEY }}
+      TOGETHER_API_KEY: ${{ secrets.TOGETHER_API_KEY }}
       CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
       CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -47,47 +74,84 @@ jobs:
           cache: npm
       - run: npm ci
 
-      - name: Generate in batches, committing after each
-        shell: bash
+      - name: Generate this shard's photos
         run: |
-          set -uo pipefail
-          START=$(date +%s); BUDGET=$(( ${{ inputs.max_minutes }} * 60 ))
-          git config user.name "foodie-photos[bot]"; git config user.email "actions@users.noreply.github.com"
-          status=0; rm -f /tmp/continue
-          while true; do
-            LEFT=$(( BUDGET - ( $(date +%s) - START ) ))
-            [ "$LEFT" -lt 120 ] && { echo "Time budget used up; a follow-up run will continue."; touch /tmp/continue; break; }
-            node tools/images/generate.mjs --provider "${{ inputs.provider }}" --limit "${{ inputs.per_batch }}" --max-minutes $(( LEFT / 60 )) | tee /tmp/gen.log
-            code=${PIPESTATUS[0]}
-            if [ -n "$(git status --porcelain assets/recipes)" ]; then
-              git add assets/recipes
-              git commit -m "Add generated recipe photos ($(grep -o 'REMAINING=[0-9]*' /tmp/gen.log | tail -1))"
-              git pull --rebase --autostash origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" || { echo "push failed"; status=1; break; }
-            fi
-            [ "$code" -ne 0 ] && { echo "Provider stopped the run (exit $code): check the key / quota, then re-run."; status=$code; break; }
-            grep -q 'REMAINING=0' /tmp/gen.log && { echo "All recipes have photos."; break; }
-          done
-          exit $status
+          set +e
+          node tools/images/generate.mjs --provider "${PROVIDER:-auto}" --shard "${{ matrix.shard }}/${{ needs.plan.outputs.shards }}" --max-minutes "${MAX_MIN:-300}"
+          code=$?
+          # exit 2 = every provider refused (bad key / quota): keep what was made, the merge job reports it
+          [ "$code" -eq 2 ] && echo "::warning::Every provider refused in shard ${{ matrix.shard }} (check the key / daily quota)."
+          exit 0
 
-      - name: Rebuild credits and verify
-        if: always()
+      - name: Pack new photos
         run: |
+          git ls-files -m -o --exclude-standard assets/recipes | tar czf shard.tgz -T - || true
+          ls -la shard.tgz || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: photos-shard-${{ matrix.shard }}
+          path: shard.tgz
+          if-no-files-found: ignore
+          retention-days: 3
+
+  merge:
+    needs: [plan, generate]
+    if: always() && needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: photos-shard-*
+          path: /tmp/dl
+        continue-on-error: true
+
+      - name: Merge shards, rebuild credits, verify
+        id: merge
+        run: |
+          mkdir -p /tmp/shards
+          for f in /tmp/dl/*/shard.tgz; do
+            [ -f "$f" ] || continue
+            d="/tmp/shards/$(basename "$(dirname "$f")")"; mkdir -p "$d"; tar xzf "$f" -C "$d"
+          done
+          node tools/images/merge.mjs /tmp/shards | tee /tmp/merge.log
           node tools/images/build.mjs || true
           node tools/images/verify.mjs || true
-          if [ -n "$(git status --porcelain docs assets/recipes)" ]; then
-            git add docs assets/recipes && git commit -m "Update photo credits" && git pull --rebase --autostash origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" || true
+          echo "added=$(grep -o 'Merged [0-9]*' /tmp/merge.log | grep -o '[0-9]*')" >> "$GITHUB_OUTPUT"
+          REM=$(node -e "import('./tools/images/recipes.mjs').then(m=>{const j=JSON.parse(require('fs').readFileSync('assets/recipes/manifest.json','utf8'));console.log(m.loadRecipes().filter(r=>!j.images[r.id]).length)})")
+          echo "remaining=$REM" >> "$GITHUB_OUTPUT"; echo "REMAINING=$REM"
+
+      - name: Commit (image files in chunks, then the manifest, so Pages switches over in one step)
+        run: |
+          git config user.name "foodie-photos[bot]"; git config user.email "actions@users.noreply.github.com"
+          git ls-files -m -o --exclude-standard assets/recipes/f assets/recipes/t | split -l 700 - /tmp/chunk.
+          for c in /tmp/chunk.*; do
+            [ -f "$c" ] || continue
+            xargs -a "$c" git add && git commit -m "Add generated recipe photos (batch)" -q
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME}" -q && git push origin "HEAD:${GITHUB_REF_NAME}" -q
+          done
+          if [ -n "$(git status --porcelain assets/recipes docs)" ]; then
+            git add assets/recipes docs
+            git commit -m "Recipe photos: ${{ steps.merge.outputs.added }} new, ${{ steps.merge.outputs.remaining }} remaining" -q
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME}" -q && git push origin "HEAD:${GITHUB_REF_NAME}"
           fi
 
-      # Keep going until every recipe has a photo: if this run ended only because of the time budget
-      # (not an error or a refused provider), start the next run. Stops by itself at REMAINING=0.
+      # Keep going until every recipe has a photo, but only while runs are making progress (no endless loop on a bad key).
       - name: Start next run if photos remain
-        if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          if [ -f /tmp/continue ]; then
-            gh workflow run recipe-photos.yml --ref "${GITHUB_REF_NAME}" -f provider="${{ inputs.provider }}" -f per_batch="${{ inputs.per_batch }}" -f max_minutes="${{ inputs.max_minutes }}"
+          if [ "${{ steps.merge.outputs.remaining }}" != "0" ] && [ "${{ steps.merge.outputs.added }}" != "0" ] && [ -n "${{ steps.merge.outputs.added }}" ]; then
+            gh workflow run recipe-photos.yml --ref "${GITHUB_REF_NAME}" -f provider="${PROVIDER:-auto}" -f shards="${SHARDS:-10}" -f max_minutes="${MAX_MIN:-300}"
             echo "Queued the next run."
           else
-            echo "No follow-up needed (finished, or stopped on an error)."
+            echo "No follow-up needed (all done, or this run made no progress: check keys / quota)."
           fi
