@@ -23,6 +23,7 @@ on:
 
 permissions:
   contents: write
+  actions: write   # lets a finished run start the next one
 
 concurrency:
   group: recipe-photos
@@ -52,10 +53,10 @@ jobs:
           set -uo pipefail
           START=$(date +%s); BUDGET=$(( ${{ inputs.max_minutes }} * 60 ))
           git config user.name "foodie-photos[bot]"; git config user.email "actions@users.noreply.github.com"
-          status=0
+          status=0; rm -f /tmp/continue
           while true; do
             LEFT=$(( BUDGET - ( $(date +%s) - START ) ))
-            [ "$LEFT" -lt 120 ] && { echo "Time budget used up; re-run the workflow to continue."; break; }
+            [ "$LEFT" -lt 120 ] && { echo "Time budget used up; a follow-up run will continue."; touch /tmp/continue; break; }
             node tools/images/generate.mjs --provider "${{ inputs.provider }}" --limit "${{ inputs.per_batch }}" --max-minutes $(( LEFT / 60 )) | tee /tmp/gen.log
             code=${PIPESTATUS[0]}
             if [ -n "$(git status --porcelain assets/recipes)" ]; then
@@ -75,4 +76,18 @@ jobs:
           node tools/images/verify.mjs || true
           if [ -n "$(git status --porcelain docs assets/recipes)" ]; then
             git add docs assets/recipes && git commit -m "Update photo credits" && git pull --rebase --autostash origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" || true
+          fi
+
+      # Keep going until every recipe has a photo: if this run ended only because of the time budget
+      # (not an error or a refused provider), start the next run. Stops by itself at REMAINING=0.
+      - name: Start next run if photos remain
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -f /tmp/continue ]; then
+            gh workflow run recipe-photos.yml --ref "${GITHUB_REF_NAME}" -f provider="${{ inputs.provider }}" -f per_batch="${{ inputs.per_batch }}" -f max_minutes="${{ inputs.max_minutes }}"
+            echo "Queued the next run."
+          else
+            echo "No follow-up needed (finished, or stopped on an error)."
           fi
