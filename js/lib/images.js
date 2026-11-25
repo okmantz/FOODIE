@@ -46,6 +46,7 @@ export function fillCredit(el, id) {
   const x = IDX && IDX[id]; if (!x || x.ok === 'manual' && !x.a) return false;
   el.replaceChildren();
   const t = (s) => document.createTextNode(s);
+  if (x.s === 'ai') { el.append(t('AI-generated image of this dish')); el.hidden = false; return true; } // honest labelling: not a photo of the dish as cooked
   el.append(t('Photo: '));
   if (x.u) { const a = document.createElement('a'); a.href = x.u; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = x.a || 'source'; el.append(a); } else el.append(t(x.a || 'Unknown'));
   if (x.l) { el.append(t(' · ')); if (x.lu) { const a = document.createElement('a'); a.href = x.lu; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = x.l; el.append(a); } else el.append(t(x.l)); }
