@@ -6,7 +6,7 @@ How FOODIE gets a genuinely relevant, legally usable photograph onto each recipe
 
 Stock-photo search can never match generated dishes like "Cajun Trout with Zucchini & Farro", so v2.2 adds a generator that **creates one photo per recipe from its own name, cuisine and ingredients**, in one consistent studio style (same light, angle and surface), so all 1,575 look like a single shoot. Results are quality-gated (blank / tiny / badly exposed images and near-duplicates are re-rolled) and written in the same WebP + manifest format as everything else. The recipe page labels these "AI-generated image of this dish".
 
-**No computer needed:** GitHub repo → **Actions → Generate recipe photos → Run workflow**. It commits photos in batches of 150 (each commit redeploys Pages once). It is resumable: if it stops (time limit or provider quota), run it again until the log says `REMAINING=0`.
+**No computer needed:** GitHub repo → **Actions → Generate recipe photos → Run workflow**. It commits photos in batches of 150 (each commit redeploys Pages once). It is resumable, and when a run ends because of the 6-hour job limit it starts the next run itself until `REMAINING=0`. If it stops on an error (bad key, quota), fix that and run it again.
 
 **Or locally:**
 
@@ -18,7 +18,7 @@ npm run images:verify
 
 | Provider | Needs | Notes |
 | --- | --- | --- |
-| `pollinations` (default) | nothing; optional `POLLINATIONS_API_KEY` | FLUX, free for light use. Slow and rate-limited, so expect a few hours for everything. |
+| `pollinations` (default) | nothing; optional `POLLINATIONS_API_KEY` | FLUX. Without a key the free tier allows 1 image per 45 s per IP, so all 1,575 take roughly 20 hours (the workflow chains runs automatically). A free key from <https://enter.pollinations.ai> (add as secret `POLLINATIONS_API_KEY`) lifts that limit. |
 | `cloudflare` | `CF_ACCOUNT_ID`, `CF_API_TOKEN` | FLUX.1 schnell on Workers AI; free daily allowance, so run it once a day. |
 | `openai` | `OPENAI_API_KEY` | Paid, best prompt-following. Model via `OPENAI_IMAGE_MODEL` (default `gpt-image-1-mini`). |
 
