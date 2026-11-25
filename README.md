@@ -11,7 +11,7 @@ A free, private, **local-first** food and meal-planning app. Plan a week (or two
 | Area | What it does |
 | --- | --- |
 | **Meal planner** | 7-day, 14-day or 30-day plans of breakfast / lunch / dinner (+ optional snacks). Preferences: budget, store, servings, diet, cuisines, max cook time, "use my pantry", and *different meals* vs *leftovers*. Swap, remove or add any meal; mark meals done. |
-| **Recipes** | 1,500+ original recipes (528 hand-written plus 1,000+ generated and quality-checked) across American, Italian, Mexican, Thai, Indian, Japanese, Chinese, Korean, Mediterranean, Greek, Middle Eastern and French cooking, plus desserts, smoothies/shakes and snacks. Each has ingredients, steps, prep/cook time, nutrition and cost per serving, allergen and diet badges, servings scaler, US/metric units. |
+| **Recipes** | 2,000+ original recipes (528 hand-written, 1,000+ generated and 440+ world-cuisine recipes, all quality-checked) from 50 cuisines including Vietnamese, Filipino, Peruvian, Ethiopian, Persian, Turkish, Brazilian, Spanish, Georgian and Cajun, plus desserts, smoothies/shakes and snacks. Each has ingredients, steps, prep/cook time, nutrition and cost per serving, allergen and diet badges, servings scaler, US/metric units. |
 | **Your own recipes** | Create, edit, photograph, rate and note recipes. Pick ingredients from the FOODIE database for automatic nutrition/cost, or type your own. Share any recipe as a link or PDF. |
 | **Grocery list** | Built from the plan: aggregates ingredients, subtracts your pantry, rounds up to real pack sizes, groups by aisle. Edit quantities, cross off, add items, hide checked. **PDF**, **print**, **share link**, copy as text. "Finish shopping" adds purchases to the pantry. |
 | **Calendar** | Download an `.ics` file for the whole plan (meal times come from your profile), or add single meals to Google / Outlook calendars. |
@@ -117,6 +117,9 @@ python3 tests/flow.py; python3 tests/flow2.py; python3 tests/outputs.py
 
 ## Adding recipes
 
+World-cuisine recipes are written as one line each in `tools/world/*.txt` (format: name | meal | emoji | prep | cook | servings | ingredient:qty ... | steps separated by // | tip). Run `npm run recipes:world` to validate (calories, cost, time, steps, allergens, duplicates) and rebuild `js/data/recipes-world.js`. Nothing is written if any recipe fails.
+
+
 Bulk recipes live in `js/data/recipes-more.js` and are produced by `node tools/generate-recipes.mjs` (templates in `tools/`; every recipe is checked against the ingredient database for calories, protein, cost and step count). Hand-written ones go in `js/data/recipes.js`.
 
 
@@ -134,3 +137,7 @@ Ingredient nutrition is sourced from USDA FoodData Central (SR Legacy) per-100 g
 ## License
 
 MIT — see `LICENSE`.
+
+## Fast recipe photos (2.3)
+
+`npm run images:generate` and the **Generate recipe photos** Action now run several image providers in parallel from one queue. Fastest: add a `FAL_KEY` secret (about $0.003 per image, around 2,000 photos in minutes). Free: Together, Cloudflare Workers AI and a free Pollinations key all stack. With no keys at all, set shards to 10 so ten runners work at once. See [docs/IMAGE-PIPELINE.md](docs/IMAGE-PIPELINE.md).

@@ -1,3 +1,12 @@
+# FOODIE 2.3 — 2,000+ recipes and fast photos
+
+- **443 new world-cuisine recipes (2,018 total).** Vietnamese, Filipino, Indonesian, Malaysian, Taiwanese, Pakistani, Sri Lankan, Turkish, Persian, Israeli, Moroccan, Ethiopian, West/East/South African, Peruvian, Brazilian, Argentinian, Colombian, Venezuelan, Cuban, Caribbean, Spanish, Portuguese, German, Eastern European, Georgian, British, Scandinavian, Hawaiian, Cajun and more, plus new Japanese, Korean, Chinese, Indian, Mexican, Italian, French and Greek dishes. Every one is easy (at most 16 ingredients, 90 minutes), breakfast through dessert and smoothies. New cuisines and their flavor profiles are wired into the app.
+- `tools/world/` (new): one-line-per-recipe authoring files and a validating builder (`npm run recipes:world`) that writes `js/data/recipes-world.js`.
+- 41 new ingredients in `js/data/ingredients.js` (nutrition values are estimates; see `docs/INGREDIENT-VERIFICATION.md`).
+- **Photos in minutes, not hours.** `tools/images/providers.mjs` + `pool.mjs` (new): parallel provider lanes (fal, Together, Cloudflare, Pollinations, optional OpenAI) share one queue with per-lane rate limits, retry, cooldown and automatic lane retirement. `generate.mjs` supports `--shard i/n`; `merge.mjs` combines shards.
+- `.github/workflows/recipe-photos.yml`: now plan, then a matrix of parallel shards, then one merge commit. Self-continues until done.
+- `tests/pool.mjs`, `tests/generate-e2e.mjs` (new), `tests/unit.mjs` (expects 2,000+). `sw.js` → `foodie-v2.3.0`.
+
 # FOODIE 2.2 — a photo for every recipe
 
 - `tools/images/generate.mjs`, `prompt.mjs`, `providers.mjs` (new): creates one matching, consistently styled photo per recipe from its own name / cuisine / ingredients (Pollinations, Cloudflare Workers AI or OpenAI); quality gate + de-duplication; resumable; writes the same WebP + manifest the app already uses. `npm run images:generate`.
