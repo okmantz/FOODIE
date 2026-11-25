@@ -46,7 +46,7 @@ async function main() {
     const m = manualFor(r.id); const st = state.recipes[r.id];
     if (m) jobs.push({ id: r.id, kind: 'manual', file: m });
     else if (st?.status === 'accepted') jobs.push({ id: r.id, kind: st.via === 'review' ? 'reviewed' : 'auto', c: st.candidate });
-    else if (manifest.images[r.id] && !only) delete manifest.images[r.id]; // no longer approved (e.g. rejected in review) -> remove
+    else if (manifest.images[r.id] && !only && manifest.images[r.id].s !== 'ai') delete manifest.images[r.id]; // no longer approved (e.g. rejected in review) -> remove; AI-generated entries (images:generate) are kept
   }
   let built = 0, skipped = 0, failed = 0, i = 0;
   const work = async () => {
