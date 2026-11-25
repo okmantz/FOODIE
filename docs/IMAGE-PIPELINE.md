@@ -88,3 +88,21 @@ Defaults (`tools/images/config.mjs`): thumbnails 480×320 q68, detail 1200×800 
 * `assets/recipes/manifest.json` maps **recipe id → file hash** (+ placeholder colour, credit). No array positions or name matching at runtime. Custom (user) recipes keep their own uploaded photo or emoji.
 * `thumb()` in `js/ui.js` is the single place photos are rendered, so cards, search results, favourites, the planner, the dashboard and recipe pages all get them. The emoji tile shows first and while loading is replaced by a tinted shimmer; the photo fades in. A missing/blocked file falls back to the emoji tile.
 * `sw.js` keeps photos in the `foodie-recipe-photos-v1` cache (cache-first, immutable file names, capped at 800 entries, survives app-version bumps). Photos you have viewed work offline; photos you haven't simply show the emoji tile offline.
+
+## Fast generation (2.3): parallel lanes and shards
+
+The generator pulls recipes from one shared queue and feeds several providers ("lanes") at once. Each lane has its own concurrency and minimum gap, backs off on rate limits (honoring Retry-After), requeues the item, and retires itself on a fatal error such as a bad key or exhausted credit. Slow lanes stand down near the end of the queue so one slow provider never holds up the finish.
+
+| Lane | Secret / env | Speed | Cost |
+|---|---|---|---|
+| fal (FLUX schnell) | `FAL_KEY` | fastest, about 1 s per image, 8 at a time | about $0.003 per image |
+| Together | `TOGETHER_API_KEY` | about 10 per minute free | free tier, paid is faster |
+| Cloudflare Workers AI | `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` | 3 at a time | about 170 free per day |
+| Pollinations | `POLLINATIONS_KEY` optional | keyed 3 at a time, keyless 1 per 20 s | free |
+| OpenAI | `OPENAI_API_KEY` optional | 3 at a time | paid |
+
+`--provider auto` (the default) uses every lane that has credentials. Useful flags: `--shard i/n`, `--lanes fal,together`, `--limit 5` (try this first), `--max-minutes`, `--only <id>`, `--force`.
+
+**GitHub Actions:** the Generate recipe photos workflow runs `plan`, then a matrix of N shard jobs in parallel (default 10), then one `merge` job that commits once (so no manifest conflicts) and re-dispatches itself until nothing remains. With no keys, 10 shards of keyless Pollinations still finish about 10 times faster than before.
+
+Merge shards by hand with `npm run images:merge -- <dir>`. These providers were tested against local stand-in servers; run `--limit 5` against the real APIs before a full run.

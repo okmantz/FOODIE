@@ -377,3 +377,44 @@ Automated checks run on every ingredient: macro sum ≤ 100 g per 100 g, Atwater
 | tamarind | Tamarind paste | mass | 239 | 2.8 | 62 | 0.6 | 5.1 | Tamarinds, raw |
 | gelatin | Unflavored gelatin | mass | 335 | 86 | 0 | 0.1 | 0 | Gelatins, dry powder, unsweetened |
 | instant-coffee | Instant coffee | mass | 353 | 12.2 | 41 | 0.5 | 0 | reference (label/typical) |
+| curry-leaves | Fresh curry leaves | mass | 108 | 6.1 | 18.7 | 1 | 6.4 | Curry leaves, fresh |
+| fresh-chili | Fresh red chilies | mass | 40 | 1.9 | 8.8 | 0.4 | 1.5 | Peppers, hot chili, red, raw |
+| scotch-bonnet | Scotch bonnet / habanero pepper | count | 4 | 0.2 | 0.9 | 0.1 | 0.3 | Peppers, hot chili, raw (about 10 g each) |
+| cassava | Cassava (yuca) | mass | 160 | 1.4 | 38.1 | 0.3 | 1.8 | Cassava, raw |
+| evaporated-milk | Evaporated milk | volume | 143 | 7.3 | 10.7 | 8.1 | 0 | Milk, canned, evaporated, whole (per 100 ml) |
+| phyllo | Phyllo dough sheets | mass | 300 | 8 | 56 | 5 | 2 | reference (package label) |
+| wonton-wrappers | Dumpling / wonton wrappers | mass | 290 | 9 | 58 | 2 | 2 | reference (package label) |
+| spring-roll-wrappers | Spring roll wrappers | count | 60 | 1.8 | 12 | 0.5 | 0.5 | reference (package label, per wrapper) |
+| tteok | Korean rice cakes (tteok) | mass | 220 | 3.5 | 49 | 0.5 | 1 | reference (package label) |
+| jackfruit | Young green jackfruit (canned) | mass | 28 | 0.8 | 6 | 0.2 | 2.5 | Jackfruit, canned, in brine |
+| ramen-noodles | Ramen noodles | mass | 350 | 11 | 70 | 2 | 3 | reference (package label, dry) |
+| glass-noodles | Glass (sweet potato) noodles | mass | 332 | 0.1 | 85 | 0.1 | 0.5 | Noodles, cellophane (dry) |
+| sticky-rice | Glutinous (sticky) rice | mass | 360 | 6.5 | 80 | 0.6 | 1 | Rice, glutinous, white, raw |
+| buckwheat | Buckwheat groats (kasha) | mass | 343 | 13.3 | 71.5 | 3.4 | 10 | Buckwheat groats, roasted, dry |
+| teff-flour | Teff flour | mass | 367 | 13.3 | 73 | 2.4 | 8 | Teff, uncooked |
+| mung-beans | Mung beans (dried) | mass | 347 | 23.9 | 62.6 | 1.2 | 16.3 | Mung beans, mature seeds, raw |
+| tapioca-flour | Tapioca starch | mass | 358 | 0.2 | 88 | 0 | 0.9 | Tapioca, dry |
+| rice-flour | Rice flour | mass | 366 | 6 | 80 | 1.4 | 2.4 | Rice flour, white |
+| masa-harina | Masa harina (corn flour) | mass | 365 | 9.3 | 76 | 3.9 | 11 | Corn flour, masa, enriched, white |
+| fava-beans | Fava beans (canned) | mass | 110 | 7.6 | 19.7 | 0.4 | 5.4 | Broadbeans (fava), mature, cooked |
+| black-eyed-peas | Black-eyed peas (canned) | mass | 116 | 7.7 | 20.8 | 0.5 | 6.5 | Cowpeas, mature, cooked |
+| pigeon-peas | Pigeon peas (canned) | mass | 121 | 6.8 | 23.3 | 0.4 | 6.7 | Pigeon peas, mature, cooked |
+| hominy | Hominy (canned) | mass | 72 | 1.4 | 14.1 | 1 | 4.1 | Hominy, canned, white |
+| aji-amarillo | Aji amarillo paste | mass | 60 | 1.5 | 9 | 2 | 3 | reference (package label) |
+| doubanjiang | Doubanjiang (chili bean paste) | mass | 90 | 4 | 12 | 3 | 3 | reference (package label) |
+| sambal | Sambal oelek (chili paste) | mass | 50 | 1.5 | 8 | 1 | 3 | reference (package label) |
+| kecap-manis | Sweet soy sauce (kecap manis) | volume | 250 | 2 | 58 | 0 | 0 | reference (package label) |
+| black-vinegar | Chinkiang black vinegar | volume | 40 | 1.5 | 7 | 0 | 0 | reference (package label) |
+| mirin | Mirin | volume | 240 | 0.3 | 56 | 0 | 0 | reference (package label) |
+| pomegranate-molasses | Pomegranate molasses | volume | 340 | 0.3 | 85 | 0 | 0 | reference (package label) |
+| star-anise | Star anise | mass | 337 | 17.6 | 50 | 15.9 | 14.6 | Spices, anise seed (closest SR row) |
+| sichuan-pepper | Sichuan peppercorns | mass | 250 | 10 | 40 | 8 | 25 | reference (typical analysis) |
+| sumac | Sumac | mass | 230 | 5 | 52 | 6 | 28 | reference (typical analysis) |
+| berbere | Berbere spice blend | mass | 300 | 12 | 55 | 12 | 30 | reference (typical analysis) |
+| ras-el-hanout | Ras el hanout | mass | 320 | 10 | 55 | 12 | 20 | reference (typical analysis) |
+| saffron | Saffron threads | mass | 310 | 11 | 65 | 6 | 4 | Spices, saffron |
+| fenugreek | Fenugreek seeds | mass | 323 | 23 | 58 | 6.4 | 25 | Spices, fenugreek seed |
+| caraway | Caraway seeds | mass | 333 | 19.8 | 49.9 | 14.6 | 38 | Spices, caraway seed |
+| dashi | Dashi granules | mass | 200 | 28 | 17 | 1 | 0 | reference (package label) |
+| matcha | Matcha powder | mass | 324 | 30 | 39 | 5 | 38 | reference (typical analysis) |
+| prunes | Prunes (dried plums) | mass | 240 | 2.2 | 64 | 0.4 | 7.1 | Plums, dried (prunes) |
