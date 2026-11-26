@@ -13,6 +13,7 @@ import { shareLink, shareOrCopy, mailtoHref } from '../lib/share.js';
 import { PDF } from '../lib/pdf.js';
 import { learnFromRecipe } from '../engines/taste.js';
 import { handleImport } from './importer.js';
+import { icon } from '../lib/icons.js';
 
 const lib = { q: '', type: 'all', cuisine: 'all', diets: [], easy: false, favs: false, mine: false, fit: true, sort: 'rec', shown: 24 };
 
@@ -22,6 +23,8 @@ export function renderRecipes() {
   const hasRestrictions = p.allergies.length || p.diets.length || p.dislikes.length;
   const root = h('div.view.stack');
   const grid = h('div.grid.c3'); const count = h('span.muted.small');
+  const filterCount = h('span.count.hide', {}, '0');
+  const clearBtn = h('button.link.small.hide', { onclick: () => { Object.assign(lib, { q: '', type: 'all', cuisine: 'all', diets: [], easy: false, favs: false, mine: false, fit: true, shown: 24 }); const fresh = renderRecipes(); root.replaceWith(fresh); } }, 'Clear filters');
   const apply = () => {
     let list = allRecipes();
     const needle = lib.q.trim().toLowerCase();
@@ -35,26 +38,33 @@ export function renderRecipes() {
     if (lib.fit && hasRestrictions) list = list.filter((r) => !state.dislikedRecipes.includes(r.id) && violations(r, p, p.diets).length === 0);
     const by = { rec: (a, b) => score(b) - score(a), quick: (a, b) => a.d.time - b.d.time, cheap: (a, b) => a.d.cost - b.d.cost, protein: (a, b) => b.d.nut.pro - a.d.nut.pro, cal: (a, b) => a.d.nut.kcal - b.d.nut.kcal, az: (a, b) => a.n.localeCompare(b.n) };
     list = [...list].sort(by[lib.sort]);
-    count.textContent = `${list.length} recipe${list.length === 1 ? '' : 's'}`;
+    count.textContent = `${list.length.toLocaleString()} recipe${list.length === 1 ? '' : 's'}`;
+    const active = (lib.cuisine !== 'all' ? 1 : 0) + lib.diets.length + (lib.easy ? 1 : 0) + (lib.favs ? 1 : 0) + (lib.mine ? 1 : 0) + (hasRestrictions && !lib.fit ? 1 : 0);
+    filterCount.textContent = String(active); filterCount.classList.toggle('hide', !active);
+    clearBtn.classList.toggle('hide', !(active || lib.type !== 'all' || lib.q));
     grid.replaceChildren(...list.slice(0, lib.shown).map((r) => recipeCard(r)));
     if (!list.length) grid.replaceChildren(h('div.empty', { style: { gridColumn: '1/-1' } }, h('div.big', {}, '🔎'), h('h3', {}, 'No recipes match'), h('p', {}, 'Try removing a filter' + (lib.fit && hasRestrictions ? ' or turn off “Fits my profile”.' : '.'))));
-    if (list.length > lib.shown) grid.append(h('div', { style: { gridColumn: '1/-1', textAlign: 'center' } }, h('button.btn.ghost', { onclick: () => { lib.shown += 24; apply(); } }, `Show more (${list.length - lib.shown} left)`)));
+    if (list.length > lib.shown) grid.append(h('div', { style: { gridColumn: '1/-1', textAlign: 'center', padding: '8px 0' } }, h('button.btn.ghost', { onclick: () => { lib.shown += 24; apply(); } }, `Show more (${list.length - lib.shown} left)`)));
   };
   const score = (r) => (isFav(r.id) ? 3 : 0) + (meta(r.id).rating || 0) + (p.favCuisines.includes(r.c) ? 2 : 0) + (state.taste.cuisine[r.c] || 0) * 0.2 + (r.custom ? 1 : 0);
   const reset = debounce(() => { lib.shown = 24; apply(); }, 100);
 
+  const panel = h('section.card.filter-panel.stack.hide', { id: 'filters' },
+    h('div.grid.c2', {}, field('Cuisine', h('select', { onchange: (e) => { lib.cuisine = e.target.value; lib.shown = 24; apply(); } }, h('option', { value: 'all' }, 'All cuisines'), CUISINES.map((c) => h('option', { value: c, selected: lib.cuisine === c }, c)))),
+      field('Sort by', h('select', { onchange: (e) => { lib.sort = e.target.value; apply(); } }, [['rec', 'Recommended'], ['quick', 'Quickest'], ['cheap', 'Lowest cost'], ['protein', 'Most protein'], ['cal', 'Fewest calories'], ['az', 'A–Z']].map(([v, l]) => h('option', { value: v, selected: lib.sort === v }, l))))),
+    h('div.field', {}, h('label', {}, 'Dietary'), chipGroup({ options: DIETS.map((d) => ({ id: d.id, label: d.label, icon: d.icon })), value: lib.diets, onChange: (v) => { lib.diets = v; lib.shown = 24; apply(); }, small: true })),
+    h('div.field', {}, h('label', {}, 'Quick filters'), h('div.chips', {}, toggleChip('Easy (≤ 30 min)', 'easy', apply), toggleChip('♥ Favorites', 'favs', apply), toggleChip('My recipes', 'mine', apply), hasRestrictions ? toggleChip('Fits my profile', 'fit', apply) : null)));
+  const filterBtn = h('button.btn.ghost.filter-btn', { 'aria-expanded': 'false', 'aria-controls': 'filters', onclick: () => { const open = panel.classList.toggle('hide') === false; filterBtn.setAttribute('aria-expanded', String(open)); filterBtn.classList.toggle('on', open); } }, icon('sliders'), h('span.hide-sm', {}, 'Filters'), filterCount);
+
   root.append(
-    h('div.page-head', {}, h('div', {}, h('h1', {}, 'Recipes'), h('p', {}, 'Cook something great — every recipe has live-calculated nutrition, cost and allergen info.')),
-      h('div.row', {}, h('button.btn.ghost', { onclick: importDialog }, 'Import'), h('a.btn.primary', { href: '#/recipe/new' }, '＋ Create recipe'))),
-    h('div.search', {}, h('input', { type: 'search', placeholder: 'Search by name, cuisine or ingredient…', 'aria-label': 'Search recipes', value: lib.q, oninput: (e) => { lib.q = e.target.value; reset(); } })),
-    h('div.chips.scroll', {}, [{ id: 'all', label: 'All' }, ...Object.entries(TYPE_LABEL).map(([id, label]) => ({ id, label }))].map((o) => h('button.chip' + (lib.type === o.id ? '.on' : ''), { onclick: (e) => { lib.type = o.id; [...e.target.parentNode.children].forEach((c) => c.classList.remove('on')); e.target.classList.add('on'); lib.shown = 24; apply(); } }, o.label))),
-    h('details.card.flat', { style: { padding: '12px 16px' } }, h('summary', { style: { cursor: 'pointer', fontWeight: 650 } }, 'Filters & sorting'),
-      h('div.stack', { style: { marginTop: '14px' } },
-        h('div.grid.c2', {}, field('Cuisine', h('select', { onchange: (e) => { lib.cuisine = e.target.value; lib.shown = 24; apply(); } }, h('option', { value: 'all' }, 'All cuisines'), CUISINES.map((c) => h('option', { value: c, selected: lib.cuisine === c }, c)))),
-          field('Sort by', h('select', { onchange: (e) => { lib.sort = e.target.value; apply(); } }, [['rec', 'Recommended'], ['quick', 'Quickest'], ['cheap', 'Lowest cost'], ['protein', 'Most protein'], ['cal', 'Fewest calories'], ['az', 'A–Z']].map(([v, l]) => h('option', { value: v, selected: lib.sort === v }, l))))),
-        h('div.field', {}, h('label', {}, 'Dietary'), chipGroup({ options: DIETS.map((d) => ({ id: d.id, label: d.label, icon: d.icon })), value: lib.diets, onChange: (v) => { lib.diets = v; lib.shown = 24; apply(); }, small: true })),
-        h('div.chips', {}, toggleChip('Easy (≤ 30 min)', 'easy', apply), toggleChip('♥ Favorites', 'favs', apply), toggleChip('My recipes', 'mine', apply), hasRestrictions ? toggleChip('Fits my profile', 'fit', apply) : null))),
-    count, grid);
+    h('div.page-head', {}, h('div', {}, h('span.eyebrow', {}, 'Your recipe box'), h('h1', {}, 'Recipes'), h('p', {}, 'Every recipe has live-calculated nutrition, cost and allergen info.')),
+      h('div.row', {}, h('button.btn.ghost', { onclick: importDialog }, icon('download'), 'Import'), h('a.btn.primary', { href: '#/recipe/new' }, icon('plus'), 'Create recipe'))),
+    h('div.toolbar', {},
+      h('div.tb-row', {}, h('div.search', {}, h('input', { type: 'search', placeholder: 'Search name, cuisine or ingredient', 'aria-label': 'Search recipes', value: lib.q, oninput: (e) => { lib.q = e.target.value; reset(); } })), filterBtn),
+      h('div.chips.scroll', {}, [{ id: 'all', label: 'All' }, ...Object.entries(TYPE_LABEL).map(([id, label]) => ({ id, label }))].map((o) => h('button.chip' + (lib.type === o.id ? '.on' : ''), { onclick: (e) => { lib.type = o.id; [...e.currentTarget.parentNode.children].forEach((c) => c.classList.remove('on')); e.currentTarget.classList.add('on'); lib.shown = 24; apply(); } }, o.label)))),
+    panel,
+    h('div.result-line', {}, count, clearBtn),
+    grid);
   apply();
   return root;
 }
@@ -83,32 +93,32 @@ export function renderRecipe(id) {
       const need = q * f(); const have = (pan.get(iid) || 0) >= need * 0.999; const part = !have && (pan.get(iid) || 0) > 0;
       return h('li', {}, h('span', {}, ing.name, ' ', have ? h('span.badge.green', {}, '✓ in pantry') : part ? h('span.badge.warn', {}, 'some in pantry') : null), h('span.q', {}, fmtQty(ing, need, sys)));
     })));
-    factBox.replaceChildren(h('div.facts', {}, fact(fmtMins(r.d.time), 'Total time'), fact(servings, 'Servings'), fact(Math.round(r.d.nut.kcal), 'kcal / serving'), fact(money(r.d.cost * mult), 'Cost / serving'), fact(money(r.d.cost * mult * servings, 2), 'Est. total')));
+    factBox.replaceChildren(h('div.facts.hero-facts', {}, fact(fmtMins(r.d.time), 'Total time'), fact(servings, 'Servings'), fact(Math.round(r.d.nut.kcal), 'kcal / serving'), fact(money(r.d.cost * mult), 'Per serving', `${money(r.d.cost * mult * servings, 2)} total`)));
   };
-  const svEl = h('b', { style: { minWidth: '22px', textAlign: 'center' } }, String(servings));
+  const svEl = h('b', {}, String(servings));
   const bump = (d) => { servings = Math.max(1, Math.min(48, servings + d)); svEl.textContent = servings; paintIng(); };
-  const stepper = h('div.row', { style: { gap: '4px' } }, h('button.icon-btn', { 'aria-label': 'Fewer servings', onclick: () => bump(-1) }, '−'), svEl, h('button.icon-btn', { 'aria-label': 'More servings', onclick: () => bump(1) }, '+'));
+  const stepper = h('div.stepper', {}, h('button.icon-btn', { 'aria-label': 'Fewer servings', onclick: () => bump(-1) }, '−'), svEl, h('button.icon-btn', { 'aria-label': 'More servings', onclick: () => bump(1) }, icon('plus')));
   paintIng();
 
   const n = r.d.nut; const goalCal = +p.calories;
   const share = (kind) => ({ pdf: () => recipePDF(r, servings), print: () => printRecipe(r, servings), link: () => shareRecipe(r) }[kind])();
   const root = h('div.view.stack.lg', {},
-    h('a.link.small', { href: '#/recipes' }, '← All recipes'),
+    h('a.link.back', { href: '#/recipes' }, '← All recipes'),
     h('div.r-hero', {}, h('div.stack.sm', {}, thumb(r, 'hero'), photoCredit(r)),
       h('div.stack', {}, h('span.eyebrow', {}, `${r.c} · ${TYPE_LABEL[r.t]}${r.custom ? ' · My recipe' : ''}`), h('h1', {}, r.n),
         h('div.row', {}, m.rating ? stars(m.rating) : h('span.small.muted', {}, 'Not rated yet'), m.cooked ? h('span.badge', {}, `Cooked ${m.cooked}×`) : null, ...dietBadges(r, 4)),
         h('div', {}, factBox),
-        h('div.row', {}, h('button.btn.primary', { onclick: () => addToPlanDialog(r.id) }, '🗓 Add to plan'), h('button.btn.ghost', { 'aria-pressed': String(isFav(r.id)), onclick: (e) => { toggleFavRecipe(r.id); } }, isFav(r.id) ? '♥ Saved' : '♡ Save'),
-          h('button.btn.ghost', { onclick: () => { logCooked(r.id); } }, '✓ I cooked this'), h('button.btn.ghost', { onclick: () => actionsMenu(r, servings) }, 'More ⋯')))),
+        h('div.act-row', {}, h('button.btn.primary', { onclick: () => addToPlanDialog(r.id) }, '🗓 Add to plan'), h('button.btn.ghost', { 'aria-pressed': String(isFav(r.id)), onclick: (e) => { toggleFavRecipe(r.id); } }, isFav(r.id) ? icon('heart', { fill: true }) : icon('heart'), isFav(r.id) ? 'Saved' : 'Save'),
+          h('button.btn.ghost', { onclick: () => { logCooked(r.id); } }, '✓ Cooked it'), h('button.btn.ghost', { 'aria-label': 'More actions', title: 'More actions', style: { padding: '0 14px' }, onclick: () => actionsMenu(r, servings) }, '⋯')))),
     p.coachOn ? h('section.card.soft.stack.sm', {}, h('div.row', { style: { gap: '10px' } }, h('img', { src: 'assets/coach-sm.png', alt: '', width: 36, height: 36, style: { borderRadius: '50%' } }), h('b', {}, 'Coach check')), coachNotes(r), h('p.tiny.muted', { style: { margin: 0 } }, 'Heads-ups only — you decide what goes on your plate.')) : null,
     r.d.unverified ? notice('warn', h('span', {}, '⚠️'), h('span', {}, 'This recipe includes custom ingredients that FOODIE can\'t look up, so nutrition, cost and allergen info only cover the recognized ingredients.')) : null,
     h('div.split', {},
       h('div.stack.lg', {},
-        h('section.card', {}, h('div.row.between', {}, h('h3', {}, 'Ingredients'), h('div.row', { style: { gap: '4px' } }, h('span.small.muted', {}, 'Servings'), stepper)), ingBox,
+        h('section.card', {}, h('div.row.between', {}, h('h3', {}, 'Ingredients'), h('div.row', { style: { gap: '8px' } }, h('span.small.muted', {}, 'Servings'), stepper)), ingBox,
           h('div.row', { style: { marginTop: '12px' } }, h('button.btn.ghost.sm', { onclick: () => addToList(r, servings) }, '🛒 Add to grocery list'), h('span.tiny.muted', {}, 'Pantry items are accounted for.'))),
         h('section.card', {}, h('h3', {}, 'Method'), h('ol.steps-ol', { style: { marginTop: '12px' } }, r.st.map((s) => h('li', {}, h('span', {}, s)))), r.tip ? h('div.notice.good', { style: { marginTop: '14px' } }, h('span', {}, '💡'), h('span', {}, r.tip)) : null)),
       h('div.stack.lg', {},
-        h('section.card.stack', {}, h('h3', {}, 'Nutrition per serving'), h('div.facts', {}, fact(Math.round(n.kcal), 'Calories'), fact(Math.round(n.pro) + ' g', 'Protein'), fact(Math.round(n.carb) + ' g', 'Carbs'), fact(Math.round(n.fat) + ' g', 'Fat'), fact(Math.round(n.fiber) + ' g', 'Fiber')), nutritionBar(n),
+        h('section.card.stack', {}, h('h3', {}, 'Nutrition per serving'), h('div.facts.five', {}, fact(Math.round(n.kcal), 'Calories'), fact(Math.round(n.pro) + ' g', 'Protein'), fact(Math.round(n.carb) + ' g', 'Carbs'), fact(Math.round(n.fat) + ' g', 'Fat'), fact(Math.round(n.fiber) + ' g', 'Fiber')), nutritionBar(n),
           goalCal ? h('p.small.muted', { style: { margin: 0 } }, `${Math.round(n.kcal / goalCal * 100)}% of your ${goalCal} kcal daily goal.`) : null,
           h('p.tiny.muted', { style: { margin: 0 } }, r.d.manualNutrition ? 'Nutrition entered by the recipe author.' : 'Calculated from average ingredient data (USDA-style typical values) — an estimate, not a lab analysis.')),
         h('section.card.stack.sm', {}, h('h3', {}, 'Allergens & diets'), r.d.allergens.length ? h('div.row', {}, h('span.small.muted', {}, 'Contains:'), ...r.d.allergens.map((a) => h('span.badge.warn', {}, ALLERGEN_LABEL[a]))) : h('p.small.muted', { style: { margin: 0 } }, 'No major allergens detected in the listed ingredients.'),
@@ -119,7 +129,7 @@ export function renderRecipe(id) {
           m.last ? h('p.tiny.muted', { style: { margin: 0 } }, `Last cooked ${fmtDay(m.last, { month: 'long', day: 'numeric', year: 'numeric' })}`) : null))));
   return root;
 }
-const fact = (v, l) => h('div', {}, h('b', {}, String(v)), h('span', {}, l));
+const fact = (v, l, sub) => h('div', {}, h('b', {}, String(v)), h('span', {}, l), sub ? h('span', { style: { textTransform: 'none', letterSpacing: 0, fontWeight: 600, marginTop: '1px' } }, sub) : null);
 
 function actionsMenu(r, servings) {
   const mm = modal({ title: r.n, body: h('div.stack.sm', {},
@@ -225,7 +235,7 @@ export function renderRecipeEditor(id) {
     h('section.card.stack', {}, field('Recipe name', h('input', { type: 'text', value: d.n, placeholder: 'e.g. Grandma\'s Sunday Sauce', oninput: (e) => (d.n = e.target.value) })),
       h('div.grid.c2', {}, field('Meal type', h('select', { onchange: (e) => (d.t = e.target.value) }, Object.entries(TYPE_LABEL).map(([k, v]) => h('option', { value: k, selected: d.t === k }, v)))),
         field('Cuisine', h('select', { onchange: (e) => (d.c = e.target.value) }, [...CUISINES, ...(CUISINES.includes(d.c) ? [] : [d.c])].map((c) => h('option', { value: c, selected: d.c === c }, c))))),
-      h('div.grid.c3', {}, field('Prep (min)', h('input', { type: 'number', min: 0, value: d.p, oninput: (e) => (d.p = e.target.value) })), field('Cook (min)', h('input', { type: 'number', min: 0, value: d.k, oninput: (e) => (d.k = e.target.value) })), field('Servings', h('input', { type: 'number', min: 1, value: d.s, oninput: (e) => (d.s = e.target.value) }))),
+      h('div.grid.c3', { style: { gridTemplateColumns: 'repeat(3, 1fr)' } }, field('Prep (min)', h('input', { type: 'number', min: 0, value: d.p, oninput: (e) => (d.p = e.target.value) })), field('Cook (min)', h('input', { type: 'number', min: 0, value: d.k, oninput: (e) => (d.k = e.target.value) })), field('Servings', h('input', { type: 'number', min: 1, value: d.s, oninput: (e) => (d.s = e.target.value) }))),
       h('div.field', {}, h('label', {}, 'Picture icon'), h('div.chips', {}, emojis.map((em) => h('button.chip.sm', { type: 'button', 'aria-label': 'Icon ' + em, onclick: (e) => { d.e = em; [...e.currentTarget.parentNode.children].forEach((c) => c.classList.remove('on')); e.currentTarget.classList.add('on'); } }, em)))), photoBox),
     h('section.card.stack', {}, h('h3', {}, 'Ingredients'), h('p.small.muted', { style: { margin: 0 } }, `Quantities are in ${sys === 'metric' ? 'grams / ml' : 'oz / fl oz'} (each for countable items). Not in the list? Type any name and a text amount like “1 cup”.`), rowsBox, h('button.btn.ghost.sm', { type: 'button', onclick: () => { rows.push({ name: '', amount: '' }); paintRows(); rowsBox.lastChild.querySelector('input').focus(); } }, '＋ Add ingredient')),
     h('section.card.stack', {}, h('h3', {}, 'Method'), stepsTa, field('Tip (optional)', h('input', { type: 'text', value: d.tip || '', oninput: (e) => (d.tip = e.target.value) }))),

@@ -11,7 +11,7 @@ with sync_playwright() as p:
     pg.on('pageerror',lambda e: errs.append('pageerror:'+str(e)+' | '+(getattr(e,'stack','') or '')[:400]))
     B='http://localhost:8080/'
     pg.goto(B); pg.wait_for_timeout(700)
-    pg.fill('input[type=text]','Owen'); pg.click('text=Start cooking'); pg.wait_for_timeout(800)
+    pg.fill('input[type=text]','Owen'); pg.click('text=Continue'); pg.click('text=Continue'); pg.click('text=Start cooking'); pg.wait_for_timeout(800)
 
     # --- recipe detail + favorite
     pg.goto(B+'#/recipes'); pg.wait_for_timeout(500)

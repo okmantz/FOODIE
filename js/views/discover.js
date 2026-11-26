@@ -74,8 +74,8 @@ function forYou() {
   if (ui.quiz) return quizView();
   const hasTaste = Object.keys(state.taste.cuisine).length > 0;
   const last = state.quizHistory[0];
-  const startCard = h('section.hero', { style: { padding: '24px 20px' } }, h('div.stack', { style: { maxWidth: '520px' } },
-    h('span.eyebrow', {}, '7 quick questions'), h('h2', { style: { color: '#fff' } }, 'What should I eat?'), h('p', {}, 'Pick between two foods at a time. FOODIE learns your cuisines, flavors and price mood — then shows the best real restaurants around you.'),
+  const startCard = h('section.hero', { style: { padding: '28px 24px' } }, h('img.coach-art', { src: 'assets/coach.png', alt: '', width: 200, height: 200 }), h('div.stack', { style: { maxWidth: '520px' } },
+    h('span.eyebrow', {}, '7 quick questions'), h('h2', { style: { color: '#fff', fontFamily: 'var(--serif)', fontWeight: 600, fontSize: 'clamp(1.6rem,4.6vw,2.2rem)' } }, 'What should I eat?'), h('p', {}, 'Pick between two foods at a time. FOODIE learns your cuisines, flavors and price mood — then shows the best real restaurants around you.'),
     h('div.row', {}, h('button.btn.primary', { onclick: () => { ui.quiz = { i: 0, answers: [], done: false }; go('#/discover'); } }, last ? 'Retake the quiz' : 'Start the quiz'))));
 
   if (!hasTaste) return h('div.stack.lg', {}, locationBar(), startCard,

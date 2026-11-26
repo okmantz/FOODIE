@@ -30,11 +30,12 @@ export function renderGrocery() {
     h('div.row', {}, state.lists.length > 1 ? h('select', { 'aria-label': 'Switch list', style: { width: 'auto', maxWidth: '220px' }, onchange: (e) => commit((s) => { s.activeListId = e.target.value; }) }, state.lists.map((l) => h('option', { value: l.id, selected: l.id === list.id }, l.name))) : null,
       h('button.btn.ghost', { onclick: () => listMenu(list, plan) }, 'More ⋯')));
 
-  const summary = h('div.grid.c4', {},
-    h('div.card.stat', {}, h('span.n', {}, money(stats.total, 2)), h('span.l', {}, 'Estimated total'), h('span.tiny.muted', {}, `${store.name} price level`)),
-    h('div.card.stat', {}, h('span.n', {}, `${done}/${list.items.length}`), h('span.l', {}, 'Checked off'), h('div.progress', { role: 'progressbar', 'aria-valuenow': pct, 'aria-valuemin': 0, 'aria-valuemax': 100 }, h('i', { style: { width: pct + '%' } }))),
-    h('div.card.stat', {}, h('span.n', {}, money(stats.reuseSavings)), h('span.l', {}, 'Saved by ingredient reuse'), h('span.tiny.muted', {}, 'vs. shopping each recipe separately')),
-    h('div.card.stat', {}, h('span.n', {}, String(list.items.filter((i) => i.ing && i.pantry > 0).length)), h('span.l', {}, 'Items from your pantry'), h('span.tiny.muted', {}, 'already counted, not on your tab')));
+  const pantryCount = list.items.filter((i) => i.ing && i.pantry > 0).length;
+  const summary = h('section.card.summary', {},
+    h('div.sum-main', {},
+      h('div.sum-total', {}, h('span.l', {}, 'Estimated total'), h('span.n', {}, money(stats.total, 2)), h('span.tiny.muted', {}, `${store.name} price level`)),
+      h('div.sum-prog', {}, h('div.row', {}, h('b', {}, `${done} of ${list.items.length} checked`), h('span.muted', {}, pct + '%')), h('div.progress', { role: 'progressbar', 'aria-label': 'Shopping progress', 'aria-valuenow': pct, 'aria-valuemin': 0, 'aria-valuemax': 100 }, h('i', { style: { width: pct + '%' } })))),
+    stats.reuseSavings > 0 || pantryCount ? h('div.sum-chips', {}, stats.reuseSavings > 0 ? h('span.badge.green', {}, `Saved ${money(stats.reuseSavings, 0)} by reusing ingredients`) : null, pantryCount ? h('span.badge', {}, `${pantryCount} item${pantryCount > 1 ? 's' : ''} from your pantry`) : null) : null);
 
   let addVal = '';
   const addRow = h('form.row.nowrap', { onsubmit: (e) => { e.preventDefault(); const v = addVal.trim(); if (!v) return; const m = v.match(/^(.*?)(?:\s*[—–-]\s*|\s+x\s*)(\d.*)$/i); mutate(list.id, (l) => l.items.push({ key: 'm:' + uid('i'), manual: true, name: (m ? m[1] : v), qtyText: m ? m[2] : '', aisle: 'Other', checked: false, have: false, recipes: [] })); addVal = ''; e.target.reset(); }, style: { gap: '8px' } },
@@ -51,7 +52,7 @@ export function renderGrocery() {
     h('p.small.muted', { style: { margin: 0 } }, `${store.name}: ${store.order}. FOODIE can't place orders or see live prices (that requires each retailer's partner access) — but every item has a one-tap link to search it on the store's site, and you can copy the whole list.`),
     nearbyStores(list, mutate),
     h('div.row', {}, field('Shopping at', h('select', { onchange: (e) => mutate(list.id, (l) => (l.store = e.target.value)) }, STORES.map((s) => h('option', { value: s.id, selected: s.id === list.store }, s.name)))),
-      store.search ? h('a.btn.primary', { href: store.search('groceries'), target: '_blank', rel: 'noopener', style: { alignSelf: 'flex-end' } }, `Open ${store.name.split(' (')[0]} ↗`) : h('span.small.muted', { style: { alignSelf: 'flex-end' } }, 'Shop in store — print or share your list.')),
+      store.search ? h('a.btn.primary', { href: store.search('groceries'), target: '_blank', rel: 'noopener', style: { alignSelf: 'flex-end' } }, (/^no preference/i.test(store.name) ? 'Search the web ↗' : `Open ${store.name.split(' (')[0]} ↗`)) : h('span.small.muted', { style: { alignSelf: 'flex-end' } }, 'Shop in store — print or share your list.')),
     h('div.row', {}, h('button.btn.ghost.sm', { onclick: async () => { await copyText(listToText(list, sys, { includeChecked: false })); toast('Remaining items copied — paste into your store app or notes'); } }, '📋 Copy remaining items'), h('button.btn.ghost.sm', { onclick: () => finishShopping(list) }, '✅ Finish shopping → add to pantry')));
 
   return h('div.view.stack', {}, header, summary,
@@ -70,8 +71,8 @@ function itemRow(list, i, sys, store) {
     h('div.nm', {}, h('b', {}, i.name), i.recipes?.length ? h('div.tiny.muted', {}, 'for ' + i.recipes.slice(0, 2).join(', ') + (i.recipes.length > 2 ? ` +${i.recipes.length - 2}` : '')) : null,
       h('div.row', { style: { gap: '6px', marginTop: '4px' } },
         i.ing ? h('button.chip.sm' + (i.have ? '.on' : ''), { 'aria-pressed': String(!!i.have), onclick: () => mutate(list.id, (l) => { const it = l.items.find((x) => x.key === i.key); it.have = !it.have; }) }, i.have ? '✓ Have it' : 'I have this') : null,
-        i.ing ? h('button.chip.sm', { onclick: () => editQty(list, i, sys) }, '✎ Qty') : null,
-        store.search ? h('a.chip.sm', { href: store.search(i.name), target: '_blank', rel: 'noopener', 'aria-label': `Find ${i.name} at ${store.name}`, style: { textDecoration: 'none' } }, '🔗 Find') : null,
+        i.ing ? h('button.chip.sm', { 'aria-label': `Edit quantity of ${i.name}`, title: 'Edit quantity', onclick: () => editQty(list, i, sys) }, '✎', h('span.hide-sm', {}, 'Qty')) : null,
+        store.search ? h('a.chip.sm', { href: store.search(i.name), target: '_blank', rel: 'noopener', 'aria-label': `Find ${i.name} at ${store.name}`, style: { textDecoration: 'none' } }, '🔗', h('span.hide-sm', {}, 'Find')) : null,
         i.manual ? h('button.chip.sm', { 'aria-label': 'Remove item', onclick: () => mutate(list.id, (l) => (l.items = l.items.filter((x) => x.key !== i.key))) }, '✕') : null)),
     h('div.amt', {}, h('div.bold', {}, d.amount), d.buy ? h('small', {}, d.buy) : null, d.pantryNote ? h('small', {}, d.pantryNote) : null, i.ing && !i.have && cost ? h('small', {}, '≈ ' + money(cost)) : null));
 }

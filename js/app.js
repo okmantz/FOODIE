@@ -22,14 +22,14 @@ import { startOnce, locationBar } from './views/locationui.js';
 import { initPlaces } from './engines/places.js';
 
 const NAV = [
-  { id: 'dashboard', label: 'Home', ico: 'home', hash: '#/' },
-  { id: 'planner', label: 'Plan', ico: 'calendar', hash: '#/planner', full: 'Meal Planner' },
-  { id: 'recipes', label: 'Recipes', ico: 'book', hash: '#/recipes' },
-  { id: 'grocery', label: 'Shop', ico: 'cart', hash: '#/grocery', full: 'Grocery List' },
-  { id: 'discover', label: 'Discover', ico: 'compass', hash: '#/discover', full: 'Discover & Eat Out' },
-  { id: 'pantry', label: 'Pantry', ico: 'jar', hash: '#/pantry' },
-  { id: 'insights', label: 'Insights', ico: 'chart', hash: '#/insights' },
-  { id: 'profile', label: 'Profile', ico: 'user', hash: '#/profile', full: 'Profile & Coach' },
+  { id: 'dashboard', label: 'Home', ico: 'home', hash: '#/', group: 'Kitchen' },
+  { id: 'planner', label: 'Plan', ico: 'calendar', hash: '#/planner', full: 'Meal Planner', group: 'Kitchen' },
+  { id: 'recipes', label: 'Recipes', ico: 'book', hash: '#/recipes', group: 'Kitchen' },
+  { id: 'grocery', label: 'Shop', ico: 'cart', hash: '#/grocery', full: 'Grocery List', group: 'Kitchen' },
+  { id: 'discover', label: 'Discover', ico: 'compass', hash: '#/discover', full: 'Discover & Eat Out', group: 'Explore' },
+  { id: 'pantry', label: 'Pantry', ico: 'jar', hash: '#/pantry', group: 'Explore' },
+  { id: 'insights', label: 'Insights', ico: 'chart', hash: '#/insights', group: 'Explore' },
+  { id: 'profile', label: 'Profile', ico: 'user', hash: '#/profile', full: 'Profile & Coach', group: 'You' },
 ];
 
 const ROUTES = [
@@ -54,18 +54,25 @@ function renderShell() {
   const root = $('#root');
   const initial = (state.profile.name || 'You').trim().charAt(0).toUpperCase();
   const av = () => h('a.avatar', { href: '#/profile', 'aria-label': 'Profile' }, state.profile.avatar ? h('img', { src: state.profile.avatar, alt: '' }) : initial);
-  const coachBtn = () => h('button.coach-fab', { 'aria-label': 'Open FOODIE Coach', onclick: openCoach }, h('img', { src: 'assets/coach-sm.png', alt: '' }));
+  const coachBtn = () => h('button.coach-fab', { 'aria-label': 'Open FOODIE Coach', onclick: openCoach }, h('img', { src: 'assets/coach-sm.png', alt: '' }), h('span', {}, 'Coach'));
+  const brand = () => h('a.brand', { href: '#/', 'aria-label': 'FOODIE home' }, h('img', { src: 'assets/coach-sm.png', alt: '' }), h('span', {}, 'FOOD', h('b', {}, 'IE')));
+  // desktop sidebar, grouped so the long list scans quickly
+  const sideNav = []; let lastGroup = null;
+  NAV.filter((n) => n.id !== 'profile').forEach((n) => {
+    if (n.group !== lastGroup) { sideNav.push(h('div.nav-label', {}, n.group)); lastGroup = n.group; }
+    sideNav.push(h('a.nav', { href: n.hash, dataset: { nav: n.id } }, h('span.ico', {}, icon(n.ico)), n.full || n.label));
+  });
   root.replaceChildren(
     h('a.skip', { href: '#main', onclick: (e) => { e.preventDefault(); $('#main').focus(); } }, 'Skip to content'),
     h('div#shell', {},
       h('aside.side', { 'aria-label': 'Primary' },
-        h('a.brand', { href: '#/' }, h('img', { src: 'assets/coach-sm.png', alt: '' }), h('span', {}, 'FOOD', h('b', {}, 'IE'))),
-        NAV.map((n) => h('a', { href: n.hash, dataset: { nav: n.id } }, h('span.ico', {}, icon(n.ico)), n.full || n.label)),
+        brand(), sideNav,
         h('div.grow'),
-        h('button.coach-mini', { onclick: openCoach }, h('img', { src: 'assets/coach-sm.png', alt: '' }), h('span', {}, h('b', {}, 'FOODIE Coach'), h('div.tiny.muted', {}, 'Ask for ideas')))),
+        h('button.coach-mini', { onclick: openCoach }, h('img', { src: 'assets/coach-sm.png', alt: '' }), h('span', {}, h('b', {}, 'FOODIE Coach'), h('div.tiny.muted', {}, 'Ask for ideas'))),
+        h('a.me.nav', { href: '#/profile', dataset: { nav: 'profile' } }, av(), h('span', {}, h('b.me-name', {}, state.profile.name || 'Your profile'), h('span', {}, 'Profile & settings')))),
       h('div', {},
-        h('header.topbar', {}, h('a.brand', { href: '#/' }, h('img', { src: 'assets/coach-sm.png', alt: '' }), h('span', {}, 'FOOD', h('b', {}, 'IE'))), h('div.spacer'), coachBtn(), av()),
-        h('main#main', { tabindex: '-1' }, h('div.desk-top', {}, coachBtn(), av()), h('div#app'))),
+        h('header.topbar', {}, brand(), h('div.spacer'), coachBtn(), av()),
+        h('main#main', { tabindex: '-1' }, h('div#app'))),
       h('nav.bottom-nav', { 'aria-label': 'Primary' },
         NAV.slice(0, 5).map((n) => h('a', { href: n.hash, dataset: { nav: n.id } }, h('span.ico', {}, icon(n.ico)), n.label)),
         h('button', { onclick: openMore, 'aria-label': 'More' }, h('span.ico', {}, icon('menu')), 'More'))));
@@ -141,17 +148,12 @@ export function seedSampleWeek() {
 
 function onboarding() {
   const draft = { name: '', household: 2, diets: [], allergies: [], goal: 'healthy', budget: 100, staples: true, sample: true };
-  const body = h('div.stack', {},
-    h('div.onboard-hero', {}, h('img', { src: 'assets/coach-sm.png', alt: '' }), h('div', {}, h('h2', {}, 'Welcome to FOODIE'), h('p.muted.small', { style: { margin: 0 } }, 'Healthy choices. Happy you. Everything stays on this device — no account needed.'))),
-    field('What should we call you?', h('input', { type: 'text', placeholder: 'Your name (optional)', autocomplete: 'given-name', autofocus: true, oninput: (e) => (draft.name = e.target.value) })),
-    h('div.grid.c2', {}, field('People you cook for', h('input', { type: 'number', min: 1, max: 12, value: 2, oninput: (e) => (draft.household = Math.max(1, Math.min(12, +e.target.value || 1))) })),
-      field('Weekly grocery budget ($)', h('input', { type: 'number', min: 20, step: 5, value: 100, oninput: (e) => (draft.budget = +e.target.value || 100) }))),
-    h('div.field', {}, h('label', {}, 'Your location'), locationBar({ showStats: false }), h('div.hint', {}, 'Used only while the app is open, to find real restaurants and grocery stores right where you are. Nothing is sent to an account.')),
-    h('div.field', {}, h('label', {}, 'Eating style (optional)'), chipGroup({ options: DIETS.filter((d) => d.id !== 'highProtein').map((d) => ({ id: d.id, label: d.label, icon: d.icon })), value: draft.diets, onChange: (v) => (draft.diets = v), small: true })),
-    h('div.field', {}, h('label', {}, 'Allergies (we\'ll keep these out of every plan)'), chipGroup({ options: ALLERGENS.map((a) => ({ id: a.id, label: a.label })), value: draft.allergies, onChange: (v) => (draft.allergies = v), small: true })),
-    h('div.field', {}, h('label', {}, 'Goal'), chipGroup({ multi: false, options: [{ id: 'healthy', label: 'Eat healthier' }, { id: 'lose', label: 'Lose weight' }, { id: 'gain', label: 'Build muscle' }, { id: 'maintain', label: 'Maintain' }], value: draft.goal, onChange: (v) => (draft.goal = v || 'healthy'), small: true })),
-    h('label.row', { style: { gap: '10px' } }, h('input', { type: 'checkbox', checked: true, onchange: (e) => (draft.staples = e.target.checked) }), h('span.small', {}, 'I have basic staples at home (salt, oil, flour, sugar, common spices)')),
-    h('label.row', { style: { gap: '10px' } }, h('input', { type: 'checkbox', checked: true, onchange: (e) => (draft.sample = e.target.checked) }), h('span.small', {}, 'Start me with a sample week and grocery list so I can explore')));
+  const STEPS = 3; let step = 0;
+  const overlay = h('div.onboard', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Welcome to FOODIE' });
+  const card = h('div.onboard-card');
+  overlay.append(card);
+
+  const done = () => { document.removeEventListener('keydown', onKey); document.body.classList.remove('noscroll'); overlay.classList.remove('in'); setTimeout(() => overlay.remove(), 260); };
   const finish = (skip) => {
     commit((s) => {
       const p = s.profile;
@@ -159,13 +161,48 @@ function onboarding() {
       p.onboarded = true;
       if (skip ? true : draft.staples) s.pantry = STAPLES.map(([ing, qty]) => ({ id: uid('p'), ing, qty, expires: null, staple: true }));
     });
+    done();
     applyTheme(); renderShell();
     if (skip || draft.sample) seedSampleWeek();
     route();
-    toast('All set — explore your sample week!');
+    toast(skip ? 'Welcome! You can set up your profile any time.' : 'All set — explore your sample week!');
   };
-  modal({ title: 'Let\'s set up your kitchen', body, wide: false, onClose: () => { if (!state.profile.onboarded) finish(true); },
-    actions: [{ label: 'Skip for now', onClick: () => finish(true) }, { label: 'Start cooking', primary: true, onClick: () => finish(false) }] });
+  const onKey = (e) => { if (e.key === 'Escape') finish(true); };
+
+  const perk = (ico, text) => h('div.perk', {}, h('span.ic', {}, icon(ico)), h('span', {}, text));
+  const pages = [
+    () => h('div.onboard-body', {},
+      h('div.onboard-mascot', {}, h('img', { src: 'assets/coach-sm.png', alt: '' }), h('div', {}, h('span.eyebrow', {}, 'Welcome'), h('h2', {}, 'Healthy choices.', h('br'), 'Happy you.'))),
+      h('div.perks', {}, perk('calendar', 'A full week of meals and a matching grocery list in under a minute'), perk('shield', 'Private by design: everything stays on this device, no account'), perk('book', '2,000+ recipes with live nutrition, cost and allergen info')),
+      field('What should we call you?', h('input', { type: 'text', placeholder: 'Your first name (optional)', autocomplete: 'given-name', value: draft.name, oninput: (e) => (draft.name = e.target.value) })),
+      h('div.grid.c2', {}, field('People you cook for', h('input', { type: 'number', inputmode: 'numeric', min: 1, max: 12, value: draft.household, oninput: (e) => (draft.household = Math.max(1, Math.min(12, +e.target.value || 1))) })),
+        field('Weekly grocery budget ($)', h('input', { type: 'number', inputmode: 'numeric', min: 20, step: 5, value: draft.budget, oninput: (e) => (draft.budget = +e.target.value || 100) })))),
+    () => h('div.onboard-body', {},
+      h('div', {}, h('h2', {}, 'How do you like to eat?'), h('p.muted', { style: { margin: '8px 0 0' } }, 'Everything here is optional, and you can change it later in Profile.')),
+      h('div.field', {}, h('label', {}, 'Eating style'), chipGroup({ options: DIETS.filter((d) => d.id !== 'highProtein').map((d) => ({ id: d.id, label: d.label, icon: d.icon })), value: draft.diets, onChange: (v) => (draft.diets = v), small: true })),
+      h('div.field', {}, h('label', {}, 'Allergies'), chipGroup({ options: ALLERGENS.map((a) => ({ id: a.id, label: a.label })), value: draft.allergies, onChange: (v) => (draft.allergies = v), small: true }), h('div.hint', {}, 'We keep these out of every plan and flag them everywhere else.')),
+      h('div.field', {}, h('label', {}, 'Your goal'), chipGroup({ multi: false, options: [{ id: 'healthy', label: 'Eat healthier' }, { id: 'lose', label: 'Lose weight' }, { id: 'gain', label: 'Build muscle' }, { id: 'maintain', label: 'Maintain' }], value: draft.goal, onChange: (v) => (draft.goal = v || 'healthy'), small: true }))),
+    () => h('div.onboard-body', {},
+      h('div', {}, h('h2', {}, 'Almost ready'), h('p.muted', { style: { margin: '8px 0 0' } }, 'Add your location for nearby restaurants and stores, then pick how to start.')),
+      h('div.field', {}, h('label', {}, 'Your location (optional)'), locationBar({ showStats: false }), h('div.hint', {}, 'Used only while the app is open. Nothing is sent to an account.')),
+      h('label.toggle-row', {}, h('input', { type: 'checkbox', checked: draft.staples, onchange: (e) => (draft.staples = e.target.checked) }), h('span', {}, h('b', {}, 'I have the basics at home'), h('div.small.muted', {}, 'Salt, oil, flour, sugar and common spices won\'t go on your grocery list.'))),
+      h('label.toggle-row', {}, h('input', { type: 'checkbox', checked: draft.sample, onchange: (e) => (draft.sample = e.target.checked) }), h('span', {}, h('b', {}, 'Start me with a sample week'), h('div.small.muted', {}, 'A ready-made plan and grocery list so you can explore right away.')))),
+  ];
+
+  const paint = () => {
+    card.replaceChildren(
+      h('div.onboard-top', {}, h('div.brand', {}, h('span', {}, 'FOOD', h('b', {}, 'IE'))), h('button.btn.quiet.sm', { onclick: () => finish(true) }, 'Skip setup')),
+      pages[step](),
+      h('div.onboard-foot', {},
+        step > 0 ? h('button.btn.ghost', { onclick: () => { step--; paint(); } }, '← Back') : h('span'),
+        h('div.onboard-dots', { 'aria-label': `Step ${step + 1} of ${STEPS}` }, Array.from({ length: STEPS }, (_, i) => h('i' + (i === step ? '.on' : '')))),
+        step < STEPS - 1 ? h('button.btn.primary', { onclick: () => { step++; paint(); } }, 'Continue →') : h('button.btn.primary', { onclick: () => finish(false) }, 'Start cooking')));
+    overlay.scrollTop = 0; card.scrollTop = 0;
+  };
+  paint();
+  document.body.append(overlay); document.body.classList.add('noscroll');
+  document.addEventListener('keydown', onKey);
+  requestAnimationFrame(() => overlay.classList.add('in'));
 }
 
 /* ------------------------------------------------------------------ boot */
@@ -184,6 +221,7 @@ export function boot() {
 function refreshChrome() {
   const initial = (state.profile.name || 'You').trim().charAt(0).toUpperCase();
   $$('.avatar').forEach((a) => { a.replaceChildren(...(state.profile.avatar ? [h('img', { src: state.profile.avatar, alt: '' })] : [document.createTextNode(initial)])); });
+  $$('.me-name').forEach((n) => { n.textContent = state.profile.name || 'Your profile'; });
 }
 
 window.FOODIE = { openCoach };

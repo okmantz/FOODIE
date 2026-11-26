@@ -6,7 +6,7 @@ with sync_playwright() as p:
     pg.on('console',lambda m: errs.append('console:'+m.text) if m.type=='error' else None)
     pg.on('pageerror',lambda e: errs.append('pageerror:'+str(e)+' | '+(getattr(e,'stack','') or '')[:400]))
     B='http://localhost:8080/'
-    pg.goto(B); pg.wait_for_timeout(600); pg.fill('input[type=text]','Owen'); pg.click('text=Start cooking'); pg.wait_for_timeout(700)
+    pg.goto(B); pg.wait_for_timeout(600); pg.fill('input[type=text]','Owen'); pg.click('text=Continue'); pg.click('text=Continue'); pg.click('text=Start cooking'); pg.wait_for_timeout(700)
     # quiz
     pg.goto(B+'#/discover'); pg.wait_for_timeout(500); pg.click('text=Start the quiz'); pg.wait_for_timeout(400)
     pg.screenshot(path='/tmp/q1.png')

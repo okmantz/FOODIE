@@ -12,7 +12,7 @@ async () => {
 """
 with sync_playwright() as p:
     b=p.chromium.launch(); pg=b.new_page(); errs=[]; pg.on('pageerror',lambda e:errs.append(str(e)))
-    pg.goto('http://localhost:8080/'); pg.wait_for_timeout(600); pg.fill('input[type=text]','O'); pg.click('text=Start cooking'); pg.wait_for_timeout(600)
+    pg.goto('http://localhost:8080/'); pg.wait_for_timeout(600); pg.fill('input[type=text]','O'); pg.click('text=Continue'); pg.click('text=Continue'); pg.click('text=Start cooking'); pg.wait_for_timeout(600)
     o=pg.evaluate(JS)
     pg.goto('http://localhost:8080/#/planner'); pg.wait_for_timeout(500)
     pg.locator('button:has-text("Calendar")').first.click(); pg.wait_for_timeout(300)

@@ -8,7 +8,7 @@ with sync_playwright() as p:
     pg.on('pageerror',lambda e: errs.append('pageerror:'+str(e)+' | '+(getattr(e,'stack','') or '')[:500]))
     pg.goto('http://localhost:8080/'); pg.wait_for_timeout(800)
     pg.fill('input[type=text]','Owen')
-    pg.click('text=Start cooking'); pg.wait_for_timeout(1200)
+    pg.click('text=Continue'); pg.click('text=Continue'); pg.click('text=Start cooking'); pg.wait_for_timeout(1200)
     for r in routes:
         pg.goto('http://localhost:8080/'+r); pg.wait_for_timeout(700)
         n=r.strip('#/') or 'home'

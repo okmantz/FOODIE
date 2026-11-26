@@ -14,7 +14,7 @@ const set = (fn, silent = true) => commit((s) => fn(s.profile), { silent });
 export function renderProfile() {
   const p = state.profile;
   const initial = (p.name || 'You').trim().charAt(0).toUpperCase();
-  const avatarBox = h('div.stack.sm', { style: { alignItems: 'center' } },
+  const avatarBox = h('div.stack.sm.avatar-box', { style: { alignItems: 'center' } },
     h('div.avatar.xl', {}, p.avatar ? h('img', { src: p.avatar, alt: 'Your profile picture' }) : initial),
     h('div.row', {}, h('label.btn.ghost.sm', {}, 'Change photo', h('input', { type: 'file', accept: 'image/*', class: 'sr', onchange: async (e) => { const f = e.target.files[0]; if (!f) return; try { const url = await imageToDataURL(f, 256, 0.85); set((x) => (x.avatar = url), false); toast('Profile picture updated'); } catch { toast('Could not read that image'); } } })), p.avatar ? h('button.btn.ghost.sm', { onclick: () => set((x) => (x.avatar = null), false) }, 'Remove') : null));
 

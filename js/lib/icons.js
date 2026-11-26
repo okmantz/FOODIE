@@ -70,6 +70,15 @@ const P = {
   store: '<path d="M4 9 5.5 4h13L20 9M4 9v11h16V9M4 9a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0A2.7 2.7 0 0 0 20 9M10 20v-5h4v5"/>',
   tag: '<path d="M3 12V4h8l9 9-8 8z"/><circle cx="7.5" cy="8.5" r="1"/>',
   nav: '<path d="m4 11 16-7-7 16-2-7z"/>',
+  'arrow-right': '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  'arrow-left': '<path d="M19 12H5M11 6l-6 6 6 6"/>',
+  more: '<circle cx="5.5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18.5" cy="12" r="1.2"/>',
+  sliders: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
+  shield: '<path d="M12 3 5 6v5.5c0 4.4 3 8 7 9.5 4-1.5 7-5.1 7-9.5V6z"/><path d="m9 12 2.2 2.2L15.5 10"/>',
+  users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.2a6.5 6.5 0 0 1 3.5 5.8"/>',
+  wallet: '<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v4"/><rect x="3" y="8" width="18" height="12" rx="2.5"/><path d="M16 14h2.5"/>',
+  wifioff: '<path d="M3 3l18 18M8.5 16.4a5 5 0 0 1 7 0M5 12.9a10 10 0 0 1 3.6-2.2M12 20h.01"/>',
 };
 
 /** Fill-style icons (solid when "on"). */
@@ -99,7 +108,7 @@ const MAP = {
   '🗺': 'map', '🗺️': 'map', '🌐': 'globe', '📞': 'phone', '🛵': 'bag', '👎': 'ban', '👍': 'check-circle', '🗑': 'trash', '🗑️': 'trash', '🔍': 'search', '🔎': 'search',
   '🔁': 'repeat', '🔄': 'refresh', '♻️': 'repeat', '♻': 'repeat', '💡': 'bulb', '🎉': 'sparkles', '✨': 'sparkles', '⬇': 'download', '⬆': 'upload', '📤': 'share',
   '🖨': 'printer', '🖨️': 'printer', '📋': 'clipboard', '🔗': 'link', '✏️': 'edit', '✏': 'edit', '🧊': 'snow', '🌙': 'moon', '🌈': 'layers', '♥': 'heart!', '♡': 'heart',
-  '⚖': 'scale', '⚖️': 'scale', '🧮': 'calc', '🤖': 'info', '💪': 'bolt', '🔒': 'lock', '🤷': 'help', '↗': 'external',
+  '⚖': 'scale', '←': 'arrow-left', '→': 'arrow-right', '⋯': 'more', '⇄': 'repeat', '✎': 'edit', '⚖️': 'scale', '🧮': 'calc', '🤖': 'info', '💪': 'bolt', '🔒': 'lock', '🤷': 'help', '↗': 'external',
 };
 const keys = Object.keys(MAP).sort((a, b) => b.length - a.length).map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
 const RE = new RegExp('(' + keys.join('|') + ')\\uFE0F?', 'gu');

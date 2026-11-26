@@ -73,14 +73,17 @@ function wizard() {
   const generate = () => {
     if (!canGo) { toast('Choose at least one meal to plan'); return; }
     const plan = generatePlan({ ...d, startDate: d.startDate || today() });
-    commit((s) => { s.plans.unshift(plan); s.activePlanId = plan.id; const list = newList(plan, s); s.lists.unshift(list); s.activeListId = list.id; });
+    // leave wizard mode *before* committing: commit() re-renders synchronously, and would otherwise redraw the wizard instead of the new plan
     ui.mode = null; ui.step = 0; ui.draft = null; ui.day = null; ui.tab = 'meals';
+    commit((s) => { s.plans.unshift(plan); s.activePlanId = plan.id; const list = newList(plan, s); s.lists.unshift(list); s.activeListId = list.id; });
+    window.scrollTo(0, 0);
     toast('Plan ready! A grocery list was created for you.');
   };
   root.append(
     h('div.steps', { 'aria-label': `Step ${ui.step + 1} of ${steps}` }, Array.from({ length: steps }, (_, i) => h('i' + (i <= ui.step ? '.on' : '')))),
+    h('div.step-label', {}, h('span', {}, 'Step ', h('b', {}, String(ui.step + 1)), ` of ${steps}`), h('span', {}, ['Timing', 'People & style', 'Budget', 'Review'][ui.step])),
     pages[ui.step](),
-    h('div.row.between', { style: { marginTop: '24px' } },
+    h('div.row.between', { style: { marginTop: '28px' } },
       ui.step > 0 ? h('button.btn.ghost', { onclick: back }, '← Back') : (activePlan() ? h('button.btn.ghost', { onclick: () => { ui.mode = null; ui.draft = null; go('#/planner'); } }, 'Cancel') : h('span')),
       ui.step < steps - 1 ? h('button.btn.primary', { onclick: next }, 'Continue →') : h('button.btn.primary', { onclick: generate }, '✨ Generate my plan')));
   return root;

@@ -7,6 +7,7 @@ import { learnFromRecipe } from './engines/taste.js';
 import { SLOTS, SLOT_LABEL, setMeal } from './engines/planner.js';
 import { storeById } from './data/stores.js';
 import { attachPhoto, fillCredit } from './lib/images.js';
+import { icon } from './lib/icons.js';
 
 export const go = (hash) => { if (location.hash === hash) window.dispatchEvent(new HashChangeEvent('hashchange')); else location.hash = hash; };
 
@@ -84,7 +85,7 @@ export function recipeCard(r, { note = '', tag = '' } = {}) {
   return h('a.rcard', { href: `#/recipe/${r.id}`, 'aria-label': r.n },
     thumb(r, 'wide'),
     tag ? h('span.tag.badge', {}, tag) : null,
-    h('button.fav' + (isFav(r.id) ? '.on' : ''), { type: 'button', 'aria-label': isFav(r.id) ? 'Remove from favorites' : 'Add to favorites', 'aria-pressed': String(isFav(r.id)), onclick: (e) => toggleFavRecipe(r.id, e) }, '♥'),
+    h('button.fav' + (isFav(r.id) ? '.on' : ''), { type: 'button', 'aria-label': isFav(r.id) ? 'Remove from favorites' : 'Add to favorites', 'aria-pressed': String(isFav(r.id)), onclick: (e) => toggleFavRecipe(r.id, e) }, icon('heart', { fill: isFav(r.id) })),
     h('div.body', {},
       h('div.eyebrow', {}, `${r.c} · ${TYPE_LABEL[r.t]}`),
       h('h4', {}, r.n),
@@ -127,7 +128,7 @@ export function nutritionBar(n) {
     h('div.legend', {}, h('span', {}, h('i', { style: { background: 'var(--tomato)' } }), `Protein ${Math.round(n.pro)} g`), h('span', {}, h('i', { style: { background: 'var(--citrus)' } }), `Carbs ${Math.round(n.carb)} g`), h('span', {}, h('i', { style: { background: 'var(--sky)' } }), `Fat ${Math.round(n.fat)} g`)));
 }
 
-export const sectionHead = (title, right, sub) => h('div.row.between', { style: { margin: '26px 0 10px' } }, h('div', {}, h('h2', {}, title), sub ? h('p.muted.small', { style: { margin: '2px 0 0' } }, sub) : null), right);
+export const sectionHead = (title, right, sub) => h('div.sec-head', {}, h('div', {}, h('h2', {}, title), sub ? h('p', {}, sub) : null), right);
 
 export const notice = (kind, ...kids) => h('div.notice.' + kind, {}, ...kids);
 export const storeName = () => storeById(state.profile.store).name;

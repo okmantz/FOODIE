@@ -1,3 +1,18 @@
+# FOODIE 3.0 — a ground-up redesign
+
+A new look and a friendlier flow across the whole app. No data, engine or storage changes: your plans, recipes and settings carry over untouched.
+
+- **New design system** (`css/styles.css`, rewritten): warm paper canvas, deep-green brand, serif headlines, softer layered depth, consistent radii/spacing/type scale, refined dark mode, bigger tap targets, custom checkboxes and selects, bottom-sheet dialogs with a grab handle.
+- **App shell** (`js/app.js`): desktop sidebar is grouped (Kitchen / Explore) with an active-page marker and your profile at the bottom; mobile bottom bar uses a pill indicator; the Coach is a labelled button instead of an unexplained circle; the duplicate avatar bar is gone.
+- **First-run onboarding** is now a 3-step full-screen flow (about you → how you eat → location & start) instead of one long form.
+- **Home** (`js/views/dashboard.js`): compact greeting, one-tap quick actions, a today's-meals card with a progress ring and big check buttons, and icon stat cards.
+- **Recipes** (`js/views/recipes.js`): sticky search with a Filters button (shows how many filters are active) and one-tap Clear filters; cleaner detail page (4 key facts, servings stepper, tidier action row).
+- **Recipe cards** (`js/ui.js`): the heart is now an outline until you save a recipe (before, every card looked already saved).
+- **Grocery** (`js/views/grocery.js`): a single compact summary card with a progress bar, so the list is on screen first; icon-only Qty/Find chips on phones.
+- **Planner** (`js/views/planner.js`): labelled wizard steps. **Fix:** after "Generate my plan" the new plan now appears immediately (the wizard used to stay on screen).
+- `js/lib/icons.js`: more icons (arrows, sliders, shield, …) and `← → ⋯ ⇄ ✎` now render as matching line icons.
+- `sw.js` → `foodie-v3.0.0`; `index.html` / `manifest.webmanifest`: light/dark browser-bar colours; `tests/*.py`: updated for the new onboarding.
+
 # FOODIE 2.3 — 2,000+ recipes and fast photos
 
 - **443 new world-cuisine recipes (2,018 total).** Vietnamese, Filipino, Indonesian, Malaysian, Taiwanese, Pakistani, Sri Lankan, Turkish, Persian, Israeli, Moroccan, Ethiopian, West/East/South African, Peruvian, Brazilian, Argentinian, Colombian, Venezuelan, Cuban, Caribbean, Spanish, Portuguese, German, Eastern European, Georgian, British, Scandinavian, Hawaiian, Cajun and more, plus new Japanese, Korean, Chinese, Indian, Mexican, Italian, French and Greek dishes. Every one is easy (at most 16 ingredients, 90 minutes), breakfast through dessert and smoothies. New cuisines and their flavor profiles are wired into the app.
