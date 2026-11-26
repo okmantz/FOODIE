@@ -14,7 +14,7 @@ export const defaults = () => ({
     goal: 'healthy', calories: '', protein: '', carbs: '', fat: '', weeklyBudget: 100, monthlyBudget: 400, diningBudget: 60,
     store: 'any', household: 2, units: 'us', theme: 'auto', hemisphere: 'north',
     mealTimes: { breakfast: '08:00', lunch: '12:30', dinner: '18:30', snack: '15:30' }, coachOn: true,
-    homeLoc: null, hemisphereAuto: true, unitsSet: false, priceAdjust: 0,
+    homeLoc: null, zip: '', zipLoc: null, hemisphereAuto: true, unitsSet: false, priceAdjust: 0,
     body: { sex: 'f', age: '', weight: '', height: '', activity: 1.375 },
     onboarded: false,
   },

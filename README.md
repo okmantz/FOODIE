@@ -31,6 +31,7 @@ FOODIE is deliberately honest about its limits.
 **Works fully offline, on your device:** planning, recipes, nutrition and cost estimates, grocery lists, pantry, PDF export, print, `.ics` export, share links, taste learning and the Coach.
 
 **Uses a public service only when you press a button:**
+- *ZIP lookup* — only the ZIP you enter is sent to a free ZIP-code service (zippopotam.us), then OpenStreetMap's Nominatim if needed.
 - *Nearby restaurants* — OpenStreetMap (Nominatim for place search, Overpass for listings). Free, no key. It returns names, cuisine tags, addresses and, where volunteers mapped them, websites and phone numbers. **No ratings, no live hours, no menus.**
 - *Calendar links, store search, delivery search, maps* — open the provider's own page in a new tab.
 

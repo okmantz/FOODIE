@@ -2,7 +2,7 @@
    Recipe photos (assets/recipes/t|f/<hash>.webp) live in their own cache: their file names are content hashes
    (immutable), so they are served cache-first with no revalidation, survive app-version bumps, and are capped
    so a long browsing session cannot fill the device. Bump VERSION to force clients to update the app files. */
-const VERSION = 'foodie-v3.0.0';
+const VERSION = 'foodie-v3.1.0';
 const IMG_CACHE = 'foodie-recipe-photos-v1';
 const MAX_PHOTOS = 800; // ~40 MB at typical sizes; oldest-cached are dropped first
 const CORE = ['./', 'index.html', 'css/styles.css', 'js/main.js', 'manifest.webmanifest', 'assets/coach.png', 'assets/coach-sm.png', 'assets/favicon.png'];

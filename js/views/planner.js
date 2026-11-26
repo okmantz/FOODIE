@@ -1,7 +1,7 @@
 /** Meal planner: guided wizard -> generated plan -> review, swap, prep, calendar, share. */
 import { h, today, addDays, fmtDay, fmtTime12, money, round, modal, toast, confirmDialog, download, uid, debounce, startOfWeek, diffDays, fmtMins, printHTML, esc } from '../lib/util.js';
 import { state, commit, recipeById, activePlan, allRecipes, activeList } from '../store.js';
-import { thumb, chipGroup, seg, field, go, coachNotes, stars, sectionHead, dietBadges, notice } from '../ui.js';
+import { thumb, chipGroup, dropdown, seg, field, go, coachNotes, stars, sectionHead, dietBadges, notice } from '../ui.js';
 import { DIETS, CUISINES, TYPE_LABEL } from '../engines/nutrition.js';
 import { SLOTS, SLOT_LABEL, defaultPrefs, generatePlan, alternatives, swapMeal, setMeal, removeMeal, planCost, planNutritionAvg, dayNutrition, allMeals, eligible, fixBatches } from '../engines/planner.js';
 import { evaluateRecipe, hasWarning } from '../engines/coach.js';
@@ -44,10 +44,10 @@ function wizard() {
     () => h('div.stack.lg', {},
       h('div', {}, h('h2', {}, 'Who\'s eating, and how?'), h('p.muted', {}, 'Allergies and dislikes from your profile are always respected.')),
       field('Servings per meal (people eating)', h('input', { type: 'number', min: 1, max: 12, value: d.household, onchange: (e) => (d.household = Math.max(1, Math.min(12, +e.target.value || 1))) })),
-      h('div.field', {}, h('label', {}, 'Dietary preferences for this plan'), chipGroup({ options: DIETS.map((x) => ({ id: x.id, label: x.label, icon: x.icon })), value: d.diets, onChange: (v) => (d.diets = v), small: true }), h('div.hint', {}, 'Every recipe in the plan will match all selected styles.')),
+      h('div.field', {}, h('label', {}, 'Dietary preferences for this plan'), dropdown({ label: 'Dietary preferences', options: DIETS.map((x) => ({ id: x.id, label: x.label, icon: x.icon })), value: d.diets, placeholder: 'No restrictions', onChange: (v) => (d.diets = v), searchable: false }), h('div.hint', {}, 'Every recipe in the plan will match all selected styles.')),
       h('div.field', {}, h('label', {}, 'Different meals, or cook once & eat twice?'),
         h('div.opt-grid', {}, [{ id: 'different', e: '🌈', t: 'Different meals', s: 'Maximum variety, a new recipe each time' }, { id: 'leftovers', e: '♻️', t: 'Leftovers', s: 'Cook lunch & dinner for two days — less cooking, less waste' }].map((o) => h('button.opt' + (d.mode === o.id ? '.on' : ''), { onclick: () => { d.mode = o.id; rerender(); } }, h('span.e', {}, o.e), h('b', {}, o.t), h('span', {}, o.s))))),
-      h('div.field', {}, h('label', {}, 'Cuisines (leave empty for everything)'), chipGroup({ options: CUISINES.map((c) => ({ id: c, label: c })), value: d.cuisines, onChange: (v) => (d.cuisines = v), small: true })),
+      h('div.field', {}, h('label', {}, 'Cuisines (leave empty for everything)'), dropdown({ label: 'Cuisines', options: CUISINES.map((c) => ({ id: c, label: c })), value: d.cuisines, placeholder: 'All cuisines', onChange: (v) => (d.cuisines = v) })),
       h('div.field', {}, h('label', {}, 'Time per meal'), seg([{ id: 0, label: 'Any' }, { id: 20, label: '≤ 20 min' }, { id: 30, label: '≤ 30 min' }, { id: 45, label: '≤ 45 min' }], d.maxTime || 0, (v) => { d.maxTime = v || null; rerender(); }))),
     () => h('div.stack.lg', {},
       h('div', {}, h('h2', {}, 'Budget & where you shop'), h('p.muted', {}, 'FOODIE estimates your basket from average US prices adjusted for the store\'s typical price level. These are planning estimates, not live prices.')),

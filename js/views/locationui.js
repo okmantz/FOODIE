@@ -2,7 +2,7 @@
 import { h, toast } from '../lib/util.js';
 import { state } from '../store.js';
 import { icon } from '../lib/icons.js';
-import { getLoc, onLocation, refreshLocation, setManualLocation, ageLabel, initLocation, fmtDist } from '../lib/location.js';
+import { getLoc, onLocation, refreshLocation, setManualLocation, saveZip, ageLabel, initLocation, fmtDist, COARSE_M } from '../lib/location.js';
 import { places, onPlaces, syncPlaces } from '../engines/places.js';
 
 let started = false;
@@ -12,19 +12,23 @@ export function startOnce() { if (started) return; started = true; initLocation(
 export async function useMyLocation() {
   startOnce();
   const r = await refreshLocation({ force: true });
-  if (r.ok) { syncPlaces({ force: true }); return true; }
-  toast(r.error === 'denied' ? 'Location is blocked for this site. Allow it in your browser\'s site settings, or enter a ZIP / city.' : r.error === 'timeout' ? 'Couldn\'t get a GPS fix in time — try again, or enter a ZIP / city.' : 'Location isn\'t available here — enter a ZIP or city instead.', { ms: 6000 });
+  if (r.ok) { syncPlaces({ force: true }); if (r.viaZip) toast(`Couldn't get a GPS fix, so FOODIE is using your saved ZIP (${state.profile.zip}).`, { ms: 5000 }); return true; }
+  toast(r.error === 'denied' ? 'Location is blocked for this site. Allow it in your browser\'s site settings, or enter a ZIP / city.' : r.error === 'timeout' ? 'Couldn\'t get a GPS fix in time — enter a ZIP code and FOODIE will use it instead.' : 'Location isn\'t available here — enter a ZIP or city instead.', { ms: 6000 });
   return false;
 }
 
-function manualForm(label = 'Search') {
-  let q = ''; let busy = false;
+/** ZIP / city box. A bare ZIP is also saved to your profile so it becomes the fallback whenever live location fails. */
+export function manualForm(label = 'Use this place') {
+  let q = state.profile.zip || ''; let busy = false;
+  const isZip = (t) => /^\d{5}(-\d{4})?$/.test(t.trim());
   return h('form.row.nowrap.loc-form', { onsubmit: async (e) => {
     e.preventDefault(); if (!q.trim() || busy) return; busy = true;
-    const r = await setManualLocation(q); busy = false;
-    if (!r.ok) toast(r.error === 'notfound' ? 'Couldn\'t find that place — try a ZIP code or "City, State".' : 'Couldn\'t reach the lookup service — check your connection.');
-    else syncPlaces({ force: true });
-  } }, h('input', { type: 'text', placeholder: 'ZIP, city or address', 'aria-label': 'ZIP, city or address', autocomplete: 'postal-code', oninput: (e) => (q = e.target.value) }), h('button.btn.ghost.sm', { type: 'submit' }, label));
+    const btn = e.target.querySelector('button'); btn.disabled = true;
+    const r = isZip(q) ? await saveZip(q) : await setManualLocation(q);
+    busy = false; btn.disabled = false;
+    if (!r.ok) toast(r.error === 'notfound' ? 'Couldn\'t find that place — try a 5-digit ZIP or "City, State".' : 'Couldn\'t reach the lookup service — check your connection.');
+    else { syncPlaces({ force: true }); toast(isZip(q) ? `ZIP ${q.trim().slice(0, 5)} saved — used whenever live location isn't available` : 'Location updated'); }
+  } }, h('input', { type: 'text', inputmode: 'text', placeholder: 'ZIP, city or address', 'aria-label': 'ZIP, city or address', autocomplete: 'postal-code', value: q, oninput: (e) => (q = e.target.value) }), h('button.btn.ghost.sm', { type: 'submit' }, label));
 }
 
 /** Compact "📍 Near Austin, TX" bar with live status + controls. */
@@ -42,17 +46,18 @@ export function locationBar({ showStats = true } = {}) {
               : pl.status === 'ok' && showStats ? h('span.small.muted', {}, `${pl.food.length} places to eat · ${pl.stores.length} grocery stores within ${fmtDist(pl.radius / 1609.34)}`) : null;
       body = h('div.row.between.nowrap', {},
         h('div.row.nowrap', { style: { gap: '12px', minWidth: 0 } }, h('span.loc-dot' + (loc.source === 'gps' ? '.live' : ''), {}, icon(loc.source === 'gps' ? 'locate' : 'pin')),
-          h('div', { style: { minWidth: 0 } }, h('div.loc-title', {}, 'Near ', h('b', {}, loc.label || 'you')), h('div.small.muted', {}, `${loc.source === 'gps' ? 'Live location' : 'Entered manually'} · updated ${ageLabel(loc.ts)}`), stat)),
+          h('div', { style: { minWidth: 0 } }, h('div.loc-title', {}, 'Near ', h('b', {}, loc.label || 'you')), h('div.small.muted', {}, `${loc.source === 'gps' ? 'Live location' : loc.source === 'zip' ? `Saved ZIP ${state.profile.zip || ''}` : 'Entered manually'} · updated ${ageLabel(loc.ts)}`), stat)),
         h('div.row.nowrap', { style: { gap: '6px' } }, h('button.btn.ghost.sm', { 'aria-label': 'Refresh location', disabled: busy || null, onclick: async () => { await useMyLocation(); } }, icon('refresh'), h('span.hide-sm', {}, 'Refresh')),
           h('button.btn.ghost.sm', { onclick: (e) => { const f = wrap.querySelector('.loc-change'); f.classList.toggle('hide'); f.querySelector('input')?.focus(); } }, 'Change')));
-      wrap.replaceChildren(body, h('div.loc-change.hide', {}, manualForm('Use this place')));
+      const coarse = loc.source === 'gps' && loc.acc != null && loc.acc > COARSE_M;
+      wrap.replaceChildren(...[body, coarse ? h('div.notice.warn', {}, icon('shield'), h('span', {}, 'This location is only accurate to about ', fmtDist(loc.acc / 1609.34), '. Enter your ZIP for better nearby results.')) : null, h('div.loc-change' + (coarse ? '' : '.hide'), {}, manualForm('Use this place'))].filter(Boolean));
     } else {
       const denied = permission === 'denied';
       wrap.replaceChildren(h('div.stack.sm', {},
         h('div.row.nowrap', { style: { gap: '12px', alignItems: 'flex-start' } }, h('span.loc-dot', {}, icon('locate')),
           h('div', {}, h('b', {}, denied ? 'Location is turned off' : 'Turn on location for accurate nearby results'),
             h('p.small.muted', { style: { margin: '2px 0 0' } }, denied ? 'Allow location for this site in your browser settings, or type a ZIP code / city below.' : 'FOODIE uses where you are right now to find real restaurants and grocery stores near you and to pick the right season. Your location stays on this device.'))),
-        h('div.row', {}, denied ? null : h('button.btn.primary', { onclick: useMyLocation, disabled: busy || null }, icon('locate'), busy ? 'Locating…' : 'Use my location'), manualForm())));
+        h('div.row', {}, denied ? null : h('button.btn.primary', { onclick: useMyLocation, disabled: busy || null }, icon('locate'), busy ? 'Locating…' : 'Use my location'), manualForm('Use ZIP'))));
     }
   };
   paint();

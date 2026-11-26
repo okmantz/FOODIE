@@ -15,6 +15,7 @@ import { aggregate, pantryTotals, packsFor, cookedSlots } from './grocery.js';
 import { storeById, priceMult } from '../data/stores.js';
 import { currentSeason, scale, CUISINE_FLAVORS, dailyCalories } from './nutrition.js';
 import { cuisineWeight, flavorWeight } from './taste.js';
+import { traits } from './variety.js';
 
 export const SLOTS = ['breakfast', 'lunch', 'dinner', 'snack'];
 export const SLOT_LABEL = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snack / Treat' };
@@ -74,6 +75,15 @@ function makeCtx(prefs, planSoFar = null) {
   const mealsPerDay = Object.values(prefs.slots).filter(Boolean).length + (prefs.snackFreq === 'daily' ? 1 : 0.4);
   const perServingBudget = prefs.budget ? prefs.budget / Math.max(1, prefs.days * mealsPerDay * prefs.household) : null;
   const usage = new Map(); const cuisineUse = new Map(); const basket = new Map(); const recentBySlot = { breakfast: [], lunch: [], dinner: [], snack: [] };
+  const proteinUse = new Map(), formUse = new Map(), flavorUse = new Map(), dayInfo = new Map(), recentTraits = { breakfast: [], lunch: [], dinner: [], snack: [] };
+  let cooked = 0;
+  // flavors this person is drawn to: their favorite cuisines' flavors + what they've learned to like
+  const liked = new Map();
+  for (const c of profile.favCuisines) for (const f of CUISINE_FLAVORS[c] || []) liked.set(f, (liked.get(f) || 0) + 1);
+  if (prefs.useTaste) for (const [f, w] of Object.entries(state.taste.flavor || {})) if (w > 0) liked.set(f, (liked.get(f) || 0) + Math.min(3, w * 0.4));
+  const favSet = new Set(profile.favCuisines);
+  // with few favorites (or a cuisine filter) variety across cuisines matters less than respecting the choice
+  const narrow = (prefs.cuisines.length > 0 && prefs.cuisines.length <= 3) || favSet.size === 1;
   const pool = {};
   for (const slot of SLOTS) {
     let list = allRecipes().filter((r) => r.slots.includes(slot) && eligible(r, prefs));
@@ -82,19 +92,25 @@ function makeCtx(prefs, planSoFar = null) {
     if (prefs.maxTime) { const f = list.filter((r) => r.d.time <= prefs.maxTime); if (f.length >= 3) list = f; else relaxed.push('time'); }
     pool[slot] = { list, relaxed };
   }
-  const note = (m) => {
+  const note = (m, date = null, slot = null) => {
     if (!m || m.leftover) return;
     const r = recipeById(m.rid); if (!r) return;
-    usage.set(r.id, (usage.get(r.id) || 0) + 1); cuisineUse.set(r.c, (cuisineUse.get(r.c) || 0) + 1);
+    usage.set(r.id, (usage.get(r.id) || 0) + 1); cuisineUse.set(r.c, (cuisineUse.get(r.c) || 0) + 1); cooked++;
+    const t = traits(r);
+    proteinUse.set(t.protein, (proteinUse.get(t.protein) || 0) + 1); formUse.set(t.form, (formUse.get(t.form) || 0) + 1);
+    for (const f of t.flavors) flavorUse.set(f, (flavorUse.get(f) || 0) + 1);
+    if (slot) { recentTraits[slot].push({ c: r.c, ...t }); }
+    if (date) { const di = dayInfo.get(date) || { cuisines: new Set(), proteins: new Set(), heavy: 0 }; di.cuisines.add(r.c); if (t.protein !== 'veg') di.proteins.add(t.protein); if (t.heavy) di.heavy++; dayInfo.set(date, di); }
     for (const [id] of r.i) { const ing = INGREDIENTS[id]; if (ing && !ing.flags.includes('Z') && !/Oils|Spices/.test(ing.aisle)) basket.set(id, (basket.get(id) || 0) + 1); }
   };
-  if (planSoFar) for (const d of planSoFar.days) for (const m of Object.values(d.slots)) note(m);
+  if (planSoFar) for (const d of planSoFar.days) for (const [sl, m] of Object.entries(d.slots)) note(m, d.date, sl);
 
-  const score = (r, slot, { prevCuisine, rnd, ignoreUsage = false } = {}) => {
+  const score = (r, slot, { prevCuisine, rnd, ignoreUsage = false, date = null } = {}) => {
     let s = 0;
+    const t = traits(r);
     if (isFav(r.id)) s += 1.3;
     const rt = meta(r.id).rating; if (rt) s += (rt - 3) * 0.55;
-    if (profile.favCuisines.includes(r.c)) s += 1.2;
+    if (profile.favCuisines.includes(r.c)) s += profile.favCuisines.length <= 3 ? 2.3 : 1.4;   // fewer favorites = each one counts for more
     if (prefs.useTaste) { s += Math.max(-2, Math.min(3, cuisineWeight(r.c) * 0.25)); s += Math.min(1, (CUISINE_FLAVORS[r.c] || []).reduce((a, f) => a + flavorWeight(f), 0) * 0.04); }
     if (!ignoreUsage) { const u = usage.get(r.id) || 0; s -= u * (prefs.mode === 'leftovers' ? 2.5 : 5); if (recentBySlot[slot].slice(-4).includes(r.id)) s -= 6; }
     if (prevCuisine && prevCuisine === r.c) s -= 0.9;
@@ -111,13 +127,42 @@ function makeCtx(prefs, planSoFar = null) {
     if (profile.goal === 'gain') s += (Math.min(r.d.nut.pro, 45) / 45) * 0.9;
     if (profile.goal === 'healthy') s += Math.min(r.d.nut.fiber, 10) * 0.06;
     if (perServingBudget) { const c = r.d.cost * mult; s += c > perServingBudget * 1.2 ? -(c - perServingBudget) * 2.5 : 0.3; }
-    s += (rnd ? rnd() : 0) * 1.0;
+    // ---- variety (kept in balance with what the person actually likes) ----
+    const rec = recentTraits[slot].slice(-3);
+    for (let k = 0; k < rec.length; k++) { const w = k === rec.length - 1 ? 1 : 0.5; const o = rec[k]; if (t.protein !== 'veg' && o.protein === t.protein) s -= 1.5 * w; if (o.form === t.form && t.form !== 'plate') s -= 1.1 * w; if (o.c === r.c) s -= 0.7 * w; }
+    if (cooked >= 3) {
+      const pShare = (proteinUse.get(t.protein) || 0) / cooked; if (t.protein !== 'veg' && pShare > 0.3) s -= (pShare - 0.3) * 5;
+      const fShare = (formUse.get(t.form) || 0) / cooked; if (t.form !== 'plate' && fShare > 0.22) s -= (fShare - 0.22) * 6;
+      const cShare = (cuisineUse.get(r.c) || 0) / cooked; const cap = narrow ? 0.7 : favSet.has(r.c) ? 0.4 : 0.22; if (cShare > cap) s -= (cShare - cap) * 7;
+    }
+    if (!narrow) {
+      if (!cuisineUse.has(r.c)) s += 0.8;                                  // try something new this plan…
+      let fit = 0; for (const f of t.flavors) fit += liked.get(f) || 0;      // …but lean toward flavors this person enjoys
+      s += Math.min(1.4, fit * 0.35);
+      let fresh = 0; for (const f of t.flavors) if (!flavorUse.has(f)) fresh++; s += fresh * 0.25;   // flavor variety across the week
+    }
+    if (date) {
+      const di = dayInfo.get(date);
+      if (di) { if (di.cuisines.has(r.c)) s -= 1.1; if (t.protein !== 'veg' && di.proteins.has(t.protein)) s -= 1.2; if (t.heavy && di.heavy) s -= 1.2; if (t.light && !di.heavy && slot === 'dinner') s += 0.15; }
+      const wd = parseISO(date).getDay(), weeknight = wd >= 1 && wd <= 4;
+      if (slot === 'dinner' || slot === 'lunch') { if (weeknight && r.d.time > 50) s -= Math.min(2, (r.d.time - 50) / 25); if (!weeknight && r.d.time >= 45 && r.d.time <= 100 && slot === 'dinner') s += 0.35; }
+      if (slot === 'breakfast' && wd >= 1 && wd <= 5 && r.d.time > 25) s -= Math.min(1.5, (r.d.time - 25) / 20);   // quick weekday breakfasts
+    }
+    s += (rnd ? rnd() : 0) * 0.8;
     return s;
   };
-  return { pool, score, note, usage, recentBySlot, mult, pan };
+  return { pool, score, note, usage, recentBySlot, mult, pan, dayInfo, recentTraits };
 }
 
 /* ------------------------------------------------------------------ generation */
+/** Pick from the best few candidates with probability weighted by score: always good, never the same top pick every time. */
+function pickOne(list, scoreFn, rnd, k = 8, temp = 0.55) {
+  const top = list.map((r) => ({ r, s: scoreFn(r) })).sort((a, b) => b.s - a.s).slice(0, k);
+  const max = top[0].s; const w = top.map((x) => Math.exp((x.s - max) / temp)); let roll = rnd() * w.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < top.length; i++) { roll -= w[i]; if (roll <= 0) return top[i].r; }
+  return top[0].r;
+}
+
 export function generatePlan(prefs) {
   const seed = prefs.seed ?? hashStr(JSON.stringify(prefs) + Date.now());
   const rnd = rng(seed);
@@ -146,10 +191,9 @@ export function generatePlan(prefs) {
         prev.batch = 2;
         continue;
       }
-      let best = null, bs = -Infinity;
-      for (const r of list) { const sc = ctx.score(r, slot, { prevCuisine: prevCuisine[slot], rnd }); if (sc > bs) { bs = sc; best = r; } }
+      const best = pickOne(list, (r) => ctx.score(r, slot, { prevCuisine: prevCuisine[slot], rnd, date }), rnd);
       const meal = { rid: best.id, servings: prefs.household, batch: 1, leftover: false, grp: uid('g'), done: false };
-      slots[slot] = meal; ctx.note(meal); ctx.recentBySlot[slot].push(best.id); prevCuisine[slot] = best.c;
+      slots[slot] = meal; ctx.note(meal, date, slot); ctx.recentBySlot[slot].push(best.id); prevCuisine[slot] = best.c;
     }
     days.push({ date, slots });
   }
@@ -200,8 +244,12 @@ export function alternatives(plan, date, slot, n = 8) {
   const prefs = plan.prefs; const ctx = makeCtx(prefs, plan);
   const cur = plan.days.find((d) => d.date === date)?.slots[slot];
   const rnd = rng(hashStr(date + slot + (cur?.rid || '')));
-  return ctx.pool[slot].list.filter((r) => r.id !== cur?.rid)
-    .map((r) => ({ r, s: ctx.score(r, slot, { rnd, ignoreUsage: false }) })).sort((a, b) => b.s - a.s).slice(0, n).map((x) => x.r);
+  const ranked = ctx.pool[slot].list.filter((r) => r.id !== cur?.rid)
+    .map((r) => ({ r, s: ctx.score(r, slot, { rnd, ignoreUsage: false, date }) })).sort((a, b) => b.s - a.s);
+  // show a spread of cuisines instead of eight near-identical suggestions
+  const out = [], per = new Map();
+  for (const x of ranked) { if ((per.get(x.r.c) || 0) >= 2) continue; per.set(x.r.c, (per.get(x.r.c) || 0) + 1); out.push(x.r); if (out.length >= n) break; }
+  return out;
 }
 
 /** Replace a meal (and its linked leftovers). */

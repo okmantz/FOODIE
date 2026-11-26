@@ -133,3 +133,57 @@ export const sectionHead = (title, right, sub) => h('div.sec-head', {}, h('div',
 export const notice = (kind, ...kids) => h('div.notice.' + kind, {}, ...kids);
 export const storeName = () => storeById(state.profile.store).name;
 export { money, round };
+
+/* ------------------------------------------------------------------ compact pickers (v3.1) */
+let msOpen = null;
+document.addEventListener('click', (e) => { if (msOpen && !msOpen.contains(e.target)) msOpen.__close?.(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && msOpen) msOpen.__close?.(); });
+
+/**
+ * Dropdown with checkboxes. `multi` => value is an array; otherwise a single id.
+ * Shows a one-line summary instead of a wall of chips; options live in a searchable panel.
+ */
+export function dropdown({ options, value, multi = true, onChange, placeholder = 'Select…', searchable = options.length > 10, label = '', noun = 'selected' }) {
+  const wrap = h('div.ms');
+  const isOn = (id) => (multi ? value.includes(id) : value === id);
+  const trigger = h('button.ms-trigger', { type: 'button', 'aria-haspopup': 'listbox', 'aria-expanded': 'false', 'aria-label': label || placeholder });
+  const panel = h('div.ms-panel.hide', { role: 'listbox', 'aria-multiselectable': String(multi) });
+  const list = h('div.ms-list');
+  const search = searchable ? h('input.ms-search', { type: 'search', placeholder: 'Search…', 'aria-label': 'Search options', oninput: (e) => { const q = e.target.value.trim().toLowerCase(); [...list.children].forEach((r) => r.classList.toggle('hide', !!q && !r.dataset.l.includes(q))); } }) : null;
+  const summary = () => {
+    const sel = multi ? options.filter((o) => value.includes(o.id)) : options.filter((o) => o.id === value);
+    if (!sel.length) return h('span.ms-ph', {}, placeholder);
+    const shown = sel.slice(0, 3).map((o) => h('span.ms-tag', {}, o.label));
+    return h('span.ms-tags', {}, ...shown, sel.length > 3 ? h('span.ms-more', {}, `+${sel.length - 3}`) : null);
+  };
+  const paintTrigger = () => trigger.replaceChildren(...[summary(), multi && value.length ? h('span.ms-count', {}, String(value.length)) : null, icon('chevron', { cls: 'ms-caret' })].filter(Boolean));
+  const paintList = () => {
+    list.replaceChildren(...options.map((o) => {
+      const on = isOn(o.id);
+      const row = h('label.ms-opt' + (on ? '.on' : ''), { dataset: { l: (o.label + ' ' + (o.hint || '')).toLowerCase() } },
+        h('input', { type: multi ? 'checkbox' : 'radio', name: multi ? null : 'ms-' + label, checked: on, onchange: (e) => {
+          if (multi) value = e.target.checked ? [...value, o.id] : value.filter((x) => x !== o.id); else { value = o.id; close(); }
+          paintTrigger(); [...list.children].forEach((r, i) => r.classList.toggle('on', isOn(options[i].id))); onChange(value);
+        } }), o.icon ? h('span.ms-ic', {}, o.icon) : null, h('span', {}, o.label));
+      return row;
+    }));
+  };
+  const open = () => { if (msOpen && msOpen !== wrap) msOpen.__close(); panel.classList.remove('hide'); trigger.setAttribute('aria-expanded', 'true'); wrap.classList.add('open'); msOpen = wrap; search?.focus({ preventScroll: true }); };
+  const close = () => { panel.classList.add('hide'); trigger.setAttribute('aria-expanded', 'false'); wrap.classList.remove('open'); if (msOpen === wrap) msOpen = null; };
+  wrap.__close = close;
+  trigger.addEventListener('click', () => (panel.classList.contains('hide') ? open() : close()));
+  panel.append(...(search ? [search] : []), list, multi ? h('div.ms-foot', {}, h('button.link', { type: 'button', onclick: () => { value = []; paintList(); paintTrigger(); onChange(value); } }, 'Clear all'), h('button.btn.primary.sm', { type: 'button', onclick: close }, 'Done')) : null);
+  paintList(); paintTrigger();
+  wrap.append(trigger, panel);
+  return wrap;
+}
+
+/** Collapsible settings section: a header with a live summary line, body hidden until opened. */
+export function section({ title, summary = '', ico = null, open = false, body }) {
+  const sum = h('span.sect-sum', {}, summary);
+  const d = h('details.sect' + (open ? '' : ''), { open: open || null },
+    h('summary', {}, ico ? h('span.sect-ic', {}, icon(ico)) : null, h('span.sect-t', {}, h('b', {}, title), sum), icon('chevron', { cls: 'sect-caret' })),
+    h('div.sect-body.stack', {}, ...(Array.isArray(body) ? body : [body])));
+  d.setSummary = (t) => { sum.textContent = t; };
+  return d;
+}

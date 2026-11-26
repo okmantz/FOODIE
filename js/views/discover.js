@@ -9,7 +9,7 @@ import { SAMPLE_RESTAURANTS } from '../data/restaurants.js';
 import { quizResult, applyQuiz, unapplyQuiz, recommendRestaurants, scoreRestaurant, dishesFor, scoreDish, learn, learnFromRestaurant, topTaste, preferredPrice } from '../engines/taste.js';
 import { eligible } from '../engines/planner.js';
 import { places, onPlaces, syncPlaces, openStatus } from '../engines/places.js';
-import { getLoc, fmtDist } from '../lib/location.js';
+import { getLoc, fmtDist, miles } from '../lib/location.js';
 import { locationBar } from './locationui.js';
 
 const ui = { tab: 'foryou', quiz: null, q: '', cuisine: 'all', price: [], maxDist: 10, minRating: 0, sort: 'match', favs: false, openNow: false, showSample: false, shown: 30 };
@@ -26,9 +26,14 @@ const orderLinks = (r) => [['DoorDash', `https://www.doordash.com/search/store/$
 function listing() {
   const real = places.food;
   const seen = new Set(real.map((r) => r.id));
-  const mine = state.restaurants.filter((r) => !r.sample && !seen.has(r.id));
-  const useSample = !real.length && (!getLoc().loc || places.status === 'error') || ui.showSample;
-  const samples = useSample ? SAMPLE_RESTAURANTS.map((r) => ({ ...r, sample: true })).filter((r) => !seen.has(r.id)) : [];
+  const loc = getLoc().loc;
+  // Places you saved earlier only count while they are actually near you (a place saved in another city/country must not leak in).
+  const mine = state.restaurants.filter((r) => !r.sample && !seen.has(r.id)).map((r) => {
+    if (loc && r.lat != null && r.lon != null) return { ...r, distance: Math.round(miles(loc.lat, loc.lon, r.lat, r.lon) * 100) / 100 };
+    return r;
+  }).filter((r) => r.distance == null || r.distance <= 60);
+  // Fictional demo listings appear ONLY when you switch them on yourself, never as a silent fallback.
+  const samples = ui.showSample ? SAMPLE_RESTAURANTS.map((r) => ({ ...r, sample: true })).filter((r) => !seen.has(r.id)) : [];
   return [...real, ...mine, ...samples];
 }
 const everything = () => [...places.food, ...state.restaurants.filter((r) => !r.sample), ...SAMPLE_RESTAURANTS.map((r) => ({ ...r, sample: true }))];

@@ -62,20 +62,23 @@ async function reverse(lat, lon) {
 const ABBR = { Alabama: 'AL', Alaska: 'AK', Arizona: 'AZ', Arkansas: 'AR', California: 'CA', Colorado: 'CO', Connecticut: 'CT', Delaware: 'DE', Florida: 'FL', Georgia: 'GA', Hawaii: 'HI', Idaho: 'ID', Illinois: 'IL', Indiana: 'IN', Iowa: 'IA', Kansas: 'KS', Kentucky: 'KY', Louisiana: 'LA', Maine: 'ME', Maryland: 'MD', Massachusetts: 'MA', Michigan: 'MI', Minnesota: 'MN', Mississippi: 'MS', Missouri: 'MO', Montana: 'MT', Nebraska: 'NE', Nevada: 'NV', 'New Hampshire': 'NH', 'New Jersey': 'NJ', 'New Mexico': 'NM', 'New York': 'NY', 'North Carolina': 'NC', 'North Dakota': 'ND', Ohio: 'OH', Oklahoma: 'OK', Oregon: 'OR', Pennsylvania: 'PA', 'Rhode Island': 'RI', 'South Carolina': 'SC', 'South Dakota': 'SD', Tennessee: 'TN', Texas: 'TX', Utah: 'UT', Vermont: 'VT', Virginia: 'VA', Washington: 'WA', 'West Virginia': 'WV', Wisconsin: 'WI', Wyoming: 'WY', 'District of Columbia': 'DC' };
 const stateAbbr = (s) => ABBR[s] || '';
 
-/** Persist a fix and derive hemisphere / units from it. */
+/** Persist a fix right away (so nothing waits on the network), then fill in the town name in the background. */
 async function applyFix(lat, lon, { acc = null, source = 'gps', info: given = null } = {}) {
   const prev = state.profile.homeLoc;
   const moved = !prev || miles(prev.lat, prev.lon, lat, lon) >= MOVE_MI;
-  let info = given || (prev && !moved && prev.source === source ? { label: prev.label, city: prev.city, region: prev.region, cc: prev.cc, country: prev.country } : null);
-  if (!info) info = (await reverse(lat, lon)) || { label: prev?.label || 'Your location', city: prev?.city || '', region: prev?.region || '', cc: prev?.cc || '', country: prev?.country || '' };
-  commit((s) => {
+  let info = given || (prev && !moved ? { label: prev.label, city: prev.city, region: prev.region, cc: prev.cc, country: prev.country } : null);
+  const needName = !info;
+  if (!info) info = { label: prev?.label && !moved ? prev.label : 'Your location', city: '', region: '', cc: prev?.cc || '', country: prev?.country || '' };
+  const write = (inf) => commit((s) => {
     const p = s.profile;
-    p.homeLoc = { lat: round5(lat), lon: round5(lon), acc: acc != null ? Math.round(acc) : null, ts: Date.now(), source, ...info };
+    p.homeLoc = { lat: round5(lat), lon: round5(lon), acc: acc != null ? Math.round(acc) : null, ts: Date.now(), source, ...inf };
     if (p.hemisphereAuto !== false) p.hemisphere = lat >= 0 ? 'north' : 'south';
-    if (!p.unitsSet && info.cc) p.units = ['us', 'lr', 'mm'].includes(info.cc) ? 'us' : 'metric';
+    if (!p.unitsSet && inf.cc) p.units = ['us', 'lr', 'mm'].includes(inf.cc) ? 'us' : 'metric';
   }, { silent: true });
+  write(info);
   lastFix = { lat, lon, acc, ts: Date.now() };
   emit();
+  if (needName) reverse(lat, lon).then((r) => { const h = state.profile.homeLoc; if (r && h && h.lat === round5(lat) && h.lon === round5(lon)) { write(r); emit(); } });
   return { moved, loc: state.profile.homeLoc };
 }
 const round5 = (n) => Math.round(n * 1e5) / 1e5;
@@ -92,45 +95,73 @@ export async function checkPermission() {
 }
 
 function getOnce(opts) {
-  return new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: false, timeout: 12000, maximumAge: 60e3, ...opts }));
+  return new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: false, timeout: 8000, maximumAge: 10 * 60e3, ...opts }));
+}
+/** Race a quick network/cached fix against a precise GPS fix; the first usable one wins, the better one refines it. */
+async function fastFix() {
+  const quick = getOnce({ timeout: 6000, maximumAge: 15 * 60e3 });
+  const precise = getOnce({ enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+  precise.catch(() => {}); quick.catch(() => {});
+  let first;
+  try { first = await Promise.any([quick, precise]); } catch (e) { throw e.errors?.find((x) => x?.code === 1) || e.errors?.[0] || e; }
+  precise.then((p) => { if (p.coords.accuracy < (first.coords.accuracy || 1e9) * 0.8) applyFix(p.coords.latitude, p.coords.longitude, { acc: p.coords.accuracy }); }).catch(() => {});
+  return first;
+}
+/** Accuracy worse than this is almost certainly an IP-based guess (often the wrong city/country). */
+export const COARSE_M = 20000;
+
+/** Use the saved ZIP when live location is missing or unreliable. */
+export async function useSavedZip() {
+  const z = (state.profile.zip || '').trim(); if (!z) return { ok: false, error: 'nozip' };
+  const zl = state.profile.zipLoc;
+  if (zl && zl.zip === z) { await applyFix(zl.lat, zl.lon, { source: 'zip', info: zl.info }); return { ok: true, loc: state.profile.homeLoc }; }
+  const r = await setManualLocation(z, { source: 'zip' });
+  if (r.ok) commit((s) => { const h = s.profile.homeLoc; s.profile.zipLoc = { zip: z, lat: h.lat, lon: h.lon, info: { label: h.label, city: h.city, region: h.region, cc: h.cc, country: h.country } }; }, { silent: true });
+  return r;
 }
 
-/** Ask for / refresh the position once. Resolves {ok, moved, loc, error}. */
+/** Ask for / refresh the position once. Resolves {ok, moved, loc, error}. Falls back to the saved ZIP. */
 export async function refreshLocation({ force = false } = {}) {
-  if (!('geolocation' in navigator)) { permission = 'unsupported'; emit(); return { ok: false, error: 'unsupported' }; }
   if (busy) return { ok: false, error: 'busy' };
   const have = state.profile.homeLoc;
   if (!force && have?.source === 'gps' && Date.now() - have.ts < 2 * 60e3) return { ok: true, moved: false, loc: have };
   busy = true; emit();
   try {
-    const pos = await getOnce({});
-    permission = 'granted';
-    const r = await applyFix(pos.coords.latitude, pos.coords.longitude, { acc: pos.coords.accuracy });
-    return { ok: true, ...r };
-  } catch (e) {
-    if (e && e.code === 1) permission = 'denied';
-    return { ok: false, error: e?.code === 1 ? 'denied' : e?.code === 3 ? 'timeout' : 'unavailable' };
+    if (!('geolocation' in navigator)) { permission = 'unsupported'; const z = await useSavedZip(); return z.ok ? { ...z, viaZip: true } : { ok: false, error: 'unsupported' }; }
+    try {
+      const pos = await fastFix();
+      permission = 'granted';
+      if (pos.coords.accuracy > COARSE_M && state.profile.zip) { const z = await useSavedZip(); if (z.ok) return { ...z, viaZip: true }; }
+      const r = await applyFix(pos.coords.latitude, pos.coords.longitude, { acc: pos.coords.accuracy });
+      return { ok: true, ...r };
+    } catch (e) {
+      if (e && e.code === 1) permission = 'denied';
+      const z = await useSavedZip();
+      if (z.ok) return { ...z, viaZip: true };
+      return { ok: false, error: e?.code === 1 ? 'denied' : e?.code === 3 ? 'timeout' : 'unavailable' };
+    }
   } finally { busy = false; emit(); }
 }
 
 /** Follow the position while the app is on screen; stop when hidden to save battery. */
 export function startLocation() {
+  if (!state.profile.homeLoc && state.profile.zip) useSavedZip();     // instant place to show while GPS warms up
   if (!('geolocation' in navigator) || permission === 'denied') return;
   refreshLocation();
   if (watchId != null) return;
   watchId = navigator.geolocation.watchPosition((pos) => {
     const { latitude: lat, longitude: lon, accuracy } = pos.coords;
-    if (accuracy > 5000) return;                       // ignore wildly imprecise (IP-based) fixes
+    if (accuracy > COARSE_M) return;                    // ignore wildly imprecise (IP-based) fixes
     if (lastFix && miles(lastFix.lat, lastFix.lon, lat, lon) < MOVE_MI && Date.now() - lastFix.ts < STALE_MS) return;
     permission = 'granted';
     applyFix(lat, lon, { acc: accuracy });
-  }, (e) => { if (e.code === 1) { permission = 'denied'; stopLocation(); emit(); } }, { enableHighAccuracy: false, maximumAge: 120e3, timeout: 30e3 });
+  }, (e) => { if (e.code === 1) { permission = 'denied'; stopLocation(); emit(); } }, { enableHighAccuracy: false, maximumAge: 5 * 60e3, timeout: 30e3 });
 }
 export function stopLocation() { if (watchId != null) { navigator.geolocation.clearWatch(watchId); watchId = null; } }
 
 /** Boot: start following, and refresh again every time the app returns to the foreground. */
 export function initLocation() {
-  checkPermission().then(() => { if (permission !== 'denied' && permission !== 'unsupported') startLocation(); else emit(); });
+  checkPermission().then(() => { if (permission !== 'denied' && permission !== 'unsupported') startLocation(); else { if (state.profile.zip && (!state.profile.homeLoc || state.profile.homeLoc.source !== 'zip')) useSavedZip(); emit(); } });
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') { if (permission !== 'denied') { startLocation(); refreshLocation({ force: Date.now() - (state.profile.homeLoc?.ts || 0) > 5 * 60e3 }); } }
     else stopLocation();
@@ -138,19 +169,46 @@ export function initLocation() {
   window.addEventListener('online', () => emit());
 }
 
-/** Fallback when GPS is denied/unavailable: geocode a ZIP / city / address. */
-export async function setManualLocation(text) {
+/** Look up a ZIP / postal code / city / address. US ZIPs use a fast dedicated lookup first, then OpenStreetMap. */
+async function geocode(t) {
+  const out = (lat, lon, a, fallback) => {
+    const cc = (a.country_code || a.cc || '').toLowerCase();
+    const city = a.city || a.town || a.village || a.suburb || a.county || '';
+    const label = [city, cc === 'us' ? stateAbbr(a.state) || a.state : a.state || a.country].filter(Boolean).join(', ') || fallback;
+    return { lat, lon, info: { label, city, region: a.state || '', cc, country: a.country || '' } };
+  };
+  const timeout = (ms) => { const c = new AbortController(); setTimeout(() => c.abort(), ms); return c.signal; };
+  if (/^\d{5}(-\d{4})?$/.test(t)) {
+    try {
+      const r = await fetch(`https://api.zippopotam.us/us/${t.slice(0, 5)}`, { signal: timeout(6000) });
+      if (r.ok) { const j = await r.json(); const pl = j.places?.[0]; if (pl) return out(+pl.latitude, +pl.longitude, { city: pl['place name'], state: pl.state, country_code: 'us', country: 'United States' }, t); }
+    } catch { /* fall through to OpenStreetMap */ }
+  }
+  const zipLike = /^[A-Za-z0-9][A-Za-z0-9 -]{2,9}$/.test(t) && /\d/.test(t) && !/\s.*\s.*\s/.test(t);
+  const q = zipLike && /^\d{5}(-\d{4})?$/.test(t) ? `postalcode=${encodeURIComponent(t.slice(0, 5))}&countrycodes=us` : `q=${encodeURIComponent(t)}`;
+  const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&addressdetails=1&${q}`, { headers: { Accept: 'application/json' }, signal: timeout(9000) });
+  const j = await r.json();
+  if (!j[0]) return null;
+  return out(+j[0].lat, +j[0].lon, j[0].address || {}, t);
+}
+
+export async function setManualLocation(text, { source = 'manual' } = {}) {
   const t = text.trim(); if (!t) return { ok: false, error: 'empty' };
   try {
-    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&addressdetails=1&q=${encodeURIComponent(t)}`, { headers: { Accept: 'application/json' } });
-    const j = await r.json();
-    if (!j[0]) return { ok: false, error: 'notfound' };
-    const a = j[0].address || {}; const cc = (a.country_code || '').toLowerCase();
-    const city = a.city || a.town || a.village || a.suburb || a.county || '';
-    const label = [city, cc === 'us' ? stateAbbr(a.state) || a.state : a.state || a.country].filter(Boolean).join(', ') || t;
-    await applyFix(+j[0].lat, +j[0].lon, { source: 'manual', info: { label, city, region: a.state || '', cc, country: a.country || '' } });
+    const g = await geocode(t);
+    if (!g) return { ok: false, error: 'notfound' };
+    await applyFix(g.lat, g.lon, { source, info: g.info });
     return { ok: true, loc: state.profile.homeLoc };
   } catch { return { ok: false, error: 'network' }; }
+}
+
+/** Save a ZIP to the profile and switch to it right away. */
+export async function saveZip(text) {
+  const z = text.trim();
+  if (!z) { commit((s) => { s.profile.zip = ''; s.profile.zipLoc = null; }, { silent: true }); emit(); return { ok: true, cleared: true }; }
+  const r = await setManualLocation(z, { source: 'zip' });
+  if (r.ok) commit((s) => { const h = s.profile.homeLoc; s.profile.zip = z; s.profile.zipLoc = { zip: z, lat: h.lat, lon: h.lon, info: { label: h.label, city: h.city, region: h.region, cc: h.cc, country: h.country } }; }, { silent: true });
+  return r;
 }
 
 export function clearLocation() { commit((s) => { s.profile.homeLoc = null; }, { silent: true }); lastFix = null; emit(); }

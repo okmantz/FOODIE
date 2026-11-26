@@ -54,7 +54,7 @@ export function renderDashboard() {
     statCard('clock', 't4', exp.length, 'expiring soon', '#/pantry', 'pantry items'));
 
   const tips = dashboardTips();
-  const tipsEl = tips.length ? h('section.stack.sm', {}, tips.map((tp) => h('div.tip', {}, h('span.ico', {}, tp.icon), h('div.grow', {}, h('b', {}, tp.title), h('p.small.muted', { style: { margin: '2px 0 8px' } }, tp.text),
+  const tipsEl = tips.length ? h('section.stack.sm', {}, tips.slice(0, 1).map((tp) => h('div.tip', {}, h('span.ico', {}, tp.icon), h('div.grow', {}, h('b', {}, tp.title), h('p.small.muted', { style: { margin: '2px 0 8px' } }, tp.text),
     tp.action ? (tp.action.href ? h('a.btn.sm.primary', { href: tp.action.href }, tp.action.label) : h('button.btn.sm.primary', { onclick: () => window.FOODIE.openCoach(tp.action.coach) }, tp.action.label)) : null),
     h('button.icon-btn.x', { 'aria-label': 'Dismiss tip', onclick: () => commit((s) => { s.dismissedTips[tp.id] = 1; }) }, '✕')))) : null;
 

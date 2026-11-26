@@ -16,9 +16,9 @@ import { CUISINE_FLAVORS } from './nutrition.js';
 import { chainOf } from '../data/stores.js';
 import { miles, onLocation, getLoc, MOVE_MI } from '../lib/location.js';
 
-const CACHE_KEY = 'foodie:places:v2';
+const CACHE_KEY = 'foodie:places:v3';
 const MIRRORS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
-const RADII = [2000, 5000, 12000];
+const RADII = [3000, 8000, 16000];
 const TTL = 6 * 3600e3;
 
 export const places = { status: 'idle', food: [], stores: [], ts: 0, at: null, radius: 0, error: '' };
@@ -124,18 +124,18 @@ function dedupe(list) {   // OSM sometimes maps a venue as both node and buildin
 /* ------------------------------------------------------------------ fetching */
 async function overpass(lat, lon, r) {
   const shopR = Math.max(r, 8000);
-  const q = `[out:json][timeout:25];(nwr["amenity"~"^(restaurant|fast_food|cafe|food_court)$"]["name"](around:${r},${lat},${lon});nwr["shop"~"^(supermarket|grocery|greengrocer|butcher|seafood|farm|health_food|wholesale|international|deli)$"]["name"](around:${shopR},${lat},${lon}););out center tags 600;`;
-  let lastErr;
-  for (const url of MIRRORS) {
+  const q = `[out:json][timeout:20];(nwr["amenity"~"^(restaurant|fast_food|cafe|food_court)$"]["name"](around:${r},${lat},${lon});nwr["shop"~"^(supermarket|grocery|greengrocer|butcher|seafood|farm|health_food|wholesale|international|deli)$"]["name"](around:${shopR},${lat},${lon}););out center tags 500;`;
+  // Ask every mirror at once and take the first good answer (was: one after another, up to 22 s each).
+  const ask = async (url) => {
+    const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 14000);
     try {
-      const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 22000);
       const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'data=' + encodeURIComponent(q), signal: ctl.signal });
-      clearTimeout(to);
       if (!res.ok) throw new Error('HTTP ' + res.status);
-      return await res.json();
-    } catch (e) { lastErr = e; }
-  }
-  throw lastErr || new Error('unreachable');
+      const j = await res.json(); if (!j || !Array.isArray(j.elements)) throw new Error('bad response');
+      return j;
+    } finally { clearTimeout(to); }
+  };
+  try { return await Promise.any(MIRRORS.map(ask)); } catch (e) { throw e.errors?.[0] || e; }
 }
 
 function readCache() { try { return JSON.parse(localStorage.getItem(CACHE_KEY) || 'null'); } catch { return null; } }
@@ -167,7 +167,7 @@ export function syncPlaces({ force = false } = {}) {
   inflight = (async () => {
     try {
       let out = { food: [], stores: [] }, used = RADII[0];
-      for (const r of RADII) { used = r; out = parseOverpass(await overpass(loc.lat, loc.lon, r), loc.lat, loc.lon); if (out.food.length >= 20) break; }
+      for (const r of RADII) { used = r; out = parseOverpass(await overpass(loc.lat, loc.lon, r), loc.lat, loc.lon); if (out.food.length >= 15) break; }
       Object.assign(places, { food: out.food, stores: out.stores, ts: Date.now(), at: { lat: loc.lat, lon: loc.lon }, radius: used, status: 'ok', error: '' });
       writeCache({ lat: loc.lat, lon: loc.lon, ts: places.ts, radius: used, food: out.food.slice(0, 250), stores: out.stores.slice(0, 120) });
     } catch (e) {

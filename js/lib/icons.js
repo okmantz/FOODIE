@@ -25,6 +25,7 @@ const P = {
   x: '<path d="m6 6 12 12M18 6 6 18"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   chevron: '<path d="m9 6 6 6-6 6"/>',
+  target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
   'chevron-left': '<path d="m15 6-6 6 6 6"/>',
   chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-5.4A8 8 0 1 1 21 12z"/>',
   utensils: '<path d="M7 3v8M4 3v5a3 3 0 0 0 6 0V3M7 11v10M18 21V3c-2.6 1.6-4 4.2-4 8h4"/>',

@@ -1,3 +1,11 @@
+# FOODIE 3.1 — faster location, ZIP fallback, compact settings, smarter plans
+
+- **Location** (`js/lib/location.js`, `js/views/locationui.js`, `js/engines/places.js`): your position is saved the instant a fix arrives (the town name fills in afterwards instead of blocking), a quick cached/network fix races a precise GPS fix, and nearby-place lookups now ask all OpenStreetMap mirrors at once. **Save a ZIP** in onboarding, the location bar or Profile → Location & ZIP; it is used automatically when GPS is denied, times out, is unavailable, or only returns a rough (IP-based) guess. Fictional demo restaurants are never shown as a silent fallback any more, and places saved in another city are hidden.
+- **Profile** (`js/views/profile.js`, `js/ui.js`): long chip lists became searchable checkbox dropdowns (eating style, allergies, favorite cuisines, goal); settings are collapsible sections with a one-line summary each. The planner wizard and onboarding use the same dropdowns.
+- **Meal picking** (`js/engines/planner.js`, new `js/engines/variety.js`): plans now weigh main protein, dish form, cuisine share, flavor variety, same-day balance and weeknight cook time, pick from the best few candidates by weighted chance instead of always the top score, and lean harder on your favorite cuisines while still introducing new ones that match flavors you like. Swap suggestions show a spread of cuisines.
+- **Design** (`css/styles.css`): refined cards, headings, floating mobile nav, softer backgrounds; home shows one tip at a time.
+- `sw.js` → `foodie-v3.1.0`.
+
 # FOODIE 3.0 — a ground-up redesign
 
 A new look and a friendlier flow across the whole app. No data, engine or storage changes: your plans, recipes and settings carry over untouched.

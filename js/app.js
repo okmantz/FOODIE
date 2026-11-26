@@ -1,7 +1,7 @@
 /** FOODIE — app shell: router, navigation, onboarding, coach drawer, share-import. */
 import { h, $, $$, modal, toast, today, uid } from './lib/util.js';
 import { state, commit, subscribe, activePlan } from './store.js';
-import { thumb, chipGroup, field, go, recipeCard } from './ui.js';
+import { thumb, chipGroup, field, go, recipeCard, dropdown } from './ui.js';
 import { DIETS, ALLERGEN_LABEL } from './engines/nutrition.js';
 import { ALLERGENS } from './data/ingredients.js';
 import { generatePlan, defaultPrefs } from './engines/planner.js';
@@ -18,7 +18,7 @@ import { renderInsights } from './views/insights.js';
 import { renderProfile } from './views/profile.js';
 import { handleImport } from './views/importer.js';
 import { icon } from './lib/icons.js';
-import { startOnce, locationBar } from './views/locationui.js';
+import { startOnce, locationBar, manualForm } from './views/locationui.js';
 import { initPlaces } from './engines/places.js';
 
 const NAV = [
@@ -179,12 +179,12 @@ function onboarding() {
         field('Weekly grocery budget ($)', h('input', { type: 'number', inputmode: 'numeric', min: 20, step: 5, value: draft.budget, oninput: (e) => (draft.budget = +e.target.value || 100) })))),
     () => h('div.onboard-body', {},
       h('div', {}, h('h2', {}, 'How do you like to eat?'), h('p.muted', { style: { margin: '8px 0 0' } }, 'Everything here is optional, and you can change it later in Profile.')),
-      h('div.field', {}, h('label', {}, 'Eating style'), chipGroup({ options: DIETS.filter((d) => d.id !== 'highProtein').map((d) => ({ id: d.id, label: d.label, icon: d.icon })), value: draft.diets, onChange: (v) => (draft.diets = v), small: true })),
-      h('div.field', {}, h('label', {}, 'Allergies'), chipGroup({ options: ALLERGENS.map((a) => ({ id: a.id, label: a.label })), value: draft.allergies, onChange: (v) => (draft.allergies = v), small: true }), h('div.hint', {}, 'We keep these out of every plan and flag them everywhere else.')),
+      h('div.field', {}, h('label', {}, 'Eating style'), dropdown({ label: 'Eating style', options: DIETS.filter((d) => d.id !== 'highProtein').map((d) => ({ id: d.id, label: d.label, icon: d.icon })), value: draft.diets, placeholder: 'No restrictions', onChange: (v) => (draft.diets = v), searchable: false })),
+      h('div.field', {}, h('label', {}, 'Allergies'), dropdown({ label: 'Allergies', options: ALLERGENS.map((a) => ({ id: a.id, label: a.label })), value: draft.allergies, placeholder: 'None', onChange: (v) => (draft.allergies = v), searchable: false }), h('div.hint', {}, 'We keep these out of every plan and flag them everywhere else.')),
       h('div.field', {}, h('label', {}, 'Your goal'), chipGroup({ multi: false, options: [{ id: 'healthy', label: 'Eat healthier' }, { id: 'lose', label: 'Lose weight' }, { id: 'gain', label: 'Build muscle' }, { id: 'maintain', label: 'Maintain' }], value: draft.goal, onChange: (v) => (draft.goal = v || 'healthy'), small: true }))),
     () => h('div.onboard-body', {},
       h('div', {}, h('h2', {}, 'Almost ready'), h('p.muted', { style: { margin: '8px 0 0' } }, 'Add your location for nearby restaurants and stores, then pick how to start.')),
-      h('div.field', {}, h('label', {}, 'Your location (optional)'), locationBar({ showStats: false }), h('div.hint', {}, 'Used only while the app is open. Nothing is sent to an account.')),
+      h('div.field', {}, h('label', {}, 'Your location'), locationBar({ showStats: false }), h('div.hint', {}, 'Tip: enter your ZIP code too. FOODIE uses it as a backup whenever live location is slow or unavailable. Nothing is sent to an account.')),
       h('label.toggle-row', {}, h('input', { type: 'checkbox', checked: draft.staples, onchange: (e) => (draft.staples = e.target.checked) }), h('span', {}, h('b', {}, 'I have the basics at home'), h('div.small.muted', {}, 'Salt, oil, flour, sugar and common spices won\'t go on your grocery list.'))),
       h('label.toggle-row', {}, h('input', { type: 'checkbox', checked: draft.sample, onchange: (e) => (draft.sample = e.target.checked) }), h('span', {}, h('b', {}, 'Start me with a sample week'), h('div.small.muted', {}, 'A ready-made plan and grocery list so you can explore right away.')))),
   ];

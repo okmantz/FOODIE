@@ -1,10 +1,12 @@
 /** Profile, goals, budgets, FOODIE Coach settings and data management. */
 import { h, modal, toast, confirmDialog, download, imageToDataURL, money } from '../lib/util.js';
 import { state, commit, exportJSON, replaceState, resetState, storageBytes } from '../store.js';
-import { chipGroup, seg, field, go, notice } from '../ui.js';
+import { seg, field, go, notice, dropdown, section } from '../ui.js';
 import { DIETS, CUISINES, bodyEstimate } from '../engines/nutrition.js';
 import { icon } from '../lib/icons.js';
 import { locationBar } from './locationui.js';
+import { saveZip } from '../lib/location.js';
+import { syncPlaces } from '../engines/places.js';
 import { ALLERGENS, ingredientList, INGREDIENTS } from '../data/ingredients.js';
 import { STORES } from '../data/stores.js';
 import { SLOTS, SLOT_LABEL } from '../engines/planner.js';
@@ -29,54 +31,75 @@ export function renderProfile() {
 
   const num = (label, key, opts = {}) => field(label, h('input', { type: 'number', min: 0, step: opts.step || 1, value: p[key] ?? '', placeholder: opts.ph || '', onchange: (e) => set((x) => (x[key] = e.target.value === '' ? '' : +e.target.value)) }), opts.hint);
 
-  return h('div.view.stack.lg', { style: { maxWidth: '860px', marginInline: 'auto' } },
-    h('datalist#ing-dl', {}, ingredientList().map((i) => h('option', { value: i.name }))),
-    h('div.page-head', {}, h('div', {}, h('h1', {}, 'Profile & Coach'), h('p', {}, 'Everything is saved on this device. Nothing leaves your browser unless you share it.'))),
-    h('section.card.stack', {}, h('div.row', { style: { gap: '22px', alignItems: 'flex-start' } }, avatarBox,
-      h('div.stack.grow', { style: { minWidth: '220px' } }, field('Name', h('input', { type: 'text', value: p.name, placeholder: 'What should we call you?', onchange: (e) => set((x) => (x.name = e.target.value.trim()), false) })),
-        field('About you (optional)', h('input', { type: 'text', value: p.bio, placeholder: 'e.g. Weeknight cook, loves spicy food', onchange: (e) => set((x) => (x.bio = e.target.value)) }))))),
-
-    h('section.card.stack', {}, h('h3', {}, 'Food preferences'),
-      h('div.field', {}, h('label', {}, 'Eating style'), chipGroup({ options: DIETS.filter((d) => d.id !== 'highProtein').map((d) => ({ id: d.id, label: d.label, icon: d.icon })), value: p.diets, onChange: (v) => set((x) => (x.diets = v), false), small: true }), h('div.hint', {}, 'Plans and suggestions will only include matching recipes.')),
-      h('div.field', {}, h('label', {}, 'Allergies'), chipGroup({ options: ALLERGENS.map((a) => ({ id: a.id, label: a.label })), value: p.allergies, onChange: (v) => set((x) => (x.allergies = v), false), small: true }), h('div.hint', {}, 'Always excluded from generated plans, and flagged everywhere else. Always check labels — FOODIE can\'t guarantee a recipe is safe for a medical allergy.')),
+  const dietOpts = DIETS.filter((d) => d.id !== 'highProtein').map((d) => ({ id: d.id, label: d.label, icon: d.icon }));
+  const allergenOpts = ALLERGENS.map((a) => ({ id: a.id, label: a.label }));
+  const cuisineOpts = CUISINES.map((c) => ({ id: c, label: c }));
+  const goalOpts = [{ id: 'healthy', label: 'Eat healthier' }, { id: 'lose', label: 'Lose weight' }, { id: 'gain', label: 'Build muscle' }, { id: 'maintain', label: 'Maintain' }];
+  const prefSummary = () => { const q = state.profile; const n = (a, w) => (a.length ? `${a.length} ${w}` : null); return [n(q.diets, 'diet' + (q.diets.length > 1 ? 's' : '')), n(q.allergies, 'allerg' + (q.allergies.length > 1 ? 'ies' : 'y')), n(q.dislikes, 'dislikes'), n(q.favCuisines, 'favorite cuisines')].filter(Boolean).join(' · ') || 'Nothing set yet'; };
+  let foodSect; foodSect = section({ title: 'Food preferences', ico: 'utensils', open: true, summary: prefSummary(), body: [
+    h('div.grid.c2', {},
+      h('div.field', {}, h('label', {}, 'Eating style'), dropdown({ label: 'Eating style', options: dietOpts, value: p.diets, placeholder: 'No restrictions', onChange: (v) => { set((x) => (x.diets = v)); foodSect.setSummary(prefSummary()); }, searchable: false }), h('div.hint', {}, 'Plans only include matching recipes.')),
+      h('div.field', {}, h('label', {}, 'Allergies'), dropdown({ label: 'Allergies', options: allergenOpts, value: p.allergies, placeholder: 'None', onChange: (v) => { set((x) => (x.allergies = v)); foodSect.setSummary(prefSummary()); }, searchable: false }), h('div.hint', {}, 'Always excluded from plans. Always check labels for medical allergies.')),
+      h('div.field', {}, h('label', {}, 'Favorite cuisines'), dropdown({ label: 'Favorite cuisines', options: cuisineOpts, value: p.favCuisines, placeholder: 'Any cuisine', onChange: (v) => { set((x) => (x.favCuisines = v)); foodSect.setSummary(prefSummary()); } }), h('div.hint', {}, 'Plans lean toward these, with variety from others.')),
+      h('div.field', {}, h('label', {}, 'Main goal'), dropdown({ label: 'Main goal', options: goalOpts, value: p.goal, multi: false, onChange: (v) => set((x) => (x.goal = v || 'healthy')), searchable: false }))),
+    h('div.grid.c2', {},
       h('div.field', {}, h('label', {}, 'Not a fan of (disliked ingredients)'), chipList('dislikes', 'e.g. mushrooms, cilantro')),
-      h('div.field', {}, h('label', {}, 'Favorite cuisines'), chipGroup({ options: CUISINES.map((c) => ({ id: c, label: c })), value: p.favCuisines, onChange: (v) => set((x) => (x.favCuisines = v), false), small: true })),
-      h('div.field', {}, h('label', {}, 'Favorite ingredients'), chipList('favIngredients', 'e.g. avocado, salmon'))),
+      h('div.field', {}, h('label', {}, 'Favorite ingredients'), chipList('favIngredients', 'e.g. avocado, salmon')))] });
 
-    h('section.card.stack', {}, h('h3', {}, 'Goals & daily targets'),
-      h('div.field', {}, h('label', {}, 'Main goal'), chipGroup({ multi: false, options: [{ id: 'healthy', label: 'Eat healthier' }, { id: 'lose', label: 'Lose weight' }, { id: 'gain', label: 'Build muscle' }, { id: 'maintain', label: 'Maintain' }], value: p.goal, onChange: (v) => set((x) => (x.goal = v || 'healthy'), false) })),
-      h('p.small.muted', { style: { margin: 0 } }, 'Targets are optional. Leave blank if you\'d rather not track numbers.'),
-      h('div.grid.c4', {}, num('Calories / day', 'calories', { ph: 'e.g. 2000' }), num('Protein g', 'protein'), num('Carbs g', 'carbs'), num('Fat g', 'fat')),
-      bodyBlock(p)),
+  const locSect = section({ title: 'Location & ZIP code', ico: 'pin', summary: p.zip ? `ZIP ${p.zip} saved` : 'Live location', body: [
+    h('p.small.muted', { style: { margin: 0 } }, 'FOODIE uses your live location while the app is open. If it can\'t find you (or only gets a rough guess), it falls back to your saved ZIP so nearby results are always in the right place.'),
+    zipField(),
+    locationBar()] });
 
-    h('section.card.stack', {}, h('h3', {}, 'Your location'), h('p.small.muted', { style: { margin: 0 } }, 'FOODIE follows where you are while the app is open so nearby restaurants, grocery stores, hemisphere seasons and units are right for you. Nothing is stored on a server.'), locationBar()),
+  return h('div.view.stack.lg.profile', { style: { maxWidth: '860px', marginInline: 'auto' } },
+    h('datalist#ing-dl', {}, ingredientList().map((i) => h('option', { value: i.name }))),
+    h('div.page-head', {}, h('div', {}, h('h1', {}, 'Profile & settings'), h('p', {}, 'Everything is saved on this device. Nothing leaves your browser unless you share it.'))),
+    h('section.card.profile-top', {}, avatarBox,
+      h('div.stack.grow', { style: { minWidth: '220px' } }, field('Name', h('input', { type: 'text', value: p.name, placeholder: 'What should we call you?', onchange: (e) => set((x) => (x.name = e.target.value.trim()), false) })),
+        field('About you (optional)', h('input', { type: 'text', value: p.bio, placeholder: 'e.g. Weeknight cook, loves spicy food', onchange: (e) => set((x) => (x.bio = e.target.value)) })))),
+    h('div.sects', {},
+      foodSect,
+      section({ title: 'Goals & daily targets', ico: 'target', summary: +p.calories ? `${p.calories} kcal/day target` : 'Optional', body: [
+        h('p.small.muted', { style: { margin: 0 } }, 'Targets are optional. Leave blank if you\'d rather not track numbers.'),
+        h('div.grid.c4', {}, num('Calories / day', 'calories', { ph: 'e.g. 2000' }), num('Protein g', 'protein'), num('Carbs g', 'carbs'), num('Fat g', 'fat')),
+        bodyBlock(p)] }),
+      locSect,
+      section({ title: 'Budgets & shopping', ico: 'wallet', summary: `$${p.weeklyBudget || 0}/week · cooking for ${p.household || 1}`, body: [
+        h('div.grid.c3', {}, num('Weekly grocery budget ($)', 'weeklyBudget'), num('Monthly grocery budget ($)', 'monthlyBudget'), num('Monthly eating-out budget ($)', 'diningBudget')),
+        h('div.grid.c2', {}, field('Default grocery store', h('select', { onchange: (e) => set((x) => (x.store = e.target.value), false) }, STORES.map((s) => h('option', { value: s.id, selected: s.id === p.store }, s.name)))), num('People you usually cook for', 'household')),
+        priceBlock(p)] }),
+      section({ title: 'Units, theme & meal times', ico: 'sliders', summary: `${p.units === 'us' ? 'US units' : 'Metric'} · ${p.theme === 'auto' ? 'Auto theme' : p.theme + ' theme'}`, body: [
+        h('div.grid.c2', {}, field('Units', seg([{ id: 'us', label: 'US (oz, cups)' }, { id: 'metric', label: 'Metric (g, ml)' }], p.units, (v) => set((x) => { x.units = v; x.unitsSet = true; }, false))),
+          field('Appearance', seg([{ id: 'auto', label: 'Auto' }, { id: 'light', label: 'Light' }, { id: 'dark', label: 'Dark' }], p.theme, (v) => set((x) => (x.theme = v), false))),
+          field('Hemisphere (for seasonal picks)', seg([{ id: 'auto', label: 'Auto' }, { id: 'north', label: 'Northern' }, { id: 'south', label: 'Southern' }], p.hemisphereAuto !== false ? 'auto' : p.hemisphere, (v) => set((x) => { if (v === 'auto') x.hemisphereAuto = true; else { x.hemisphereAuto = false; x.hemisphere = v; } }, false)))),
+        h('div.field', {}, h('label', {}, 'Usual meal times (calendar events & prep schedules)'), h('div.grid.c4', {}, SLOTS.map((s) => field(SLOT_LABEL[s].split(' ')[0], h('input', { type: 'time', value: p.mealTimes[s], onchange: (e) => set((x) => (x.mealTimes[s] = e.target.value || x.mealTimes[s])) })))))] }),
+      section({ title: 'FOODIE Coach', ico: 'chat', summary: p.coachOn ? 'On' : 'Off', body: [
+        h('label.row', { style: { gap: '10px', alignItems: 'flex-start' } }, h('input', { type: 'checkbox', checked: p.coachOn, onchange: (e) => set((x) => (x.coachOn = e.target.checked), false) }), h('span', {}, h('b', {}, 'Show coach notes on recipes and tips on the dashboard'), h('div.small.muted', {}, 'Gentle heads-ups about allergies, diet, goals and budget. You can always override.'))),
+        h('div.notice', {}, h('span', {}, '🤖'), h('span', {}, 'The Coach is a transparent set of rules running in your browser — not an AI model, and nothing is sent anywhere. It never blocks a choice.'))] }),
+      section({ title: 'Your data', ico: 'shield', summary: `${(storageBytes() / 1024).toFixed(0)} KB on this device`, body: [
+        h('p.small.muted', { style: { margin: 0 } }, 'Stored in this browser. Clearing your browser data will erase it — export a backup now and then.'),
+        h('div.row', {}, h('button.btn.ghost', { onclick: () => { download(`foodie-backup-${new Date().toISOString().slice(0, 10)}.json`, exportJSON(), 'application/json'); toast('Backup downloaded'); } }, '⬇ Export backup'),
+          h('label.btn.ghost', {}, '⬆ Restore backup', h('input', { type: 'file', accept: 'application/json,.json', class: 'sr', onchange: restore })),
+          h('button.btn.danger', { onclick: async () => { if (await confirmDialog('This permanently erases all your plans, recipes, favorites and settings on this device.', { okLabel: 'Erase everything', danger: true, title: 'Reset FOODIE?' })) { resetState(); location.hash = '#/'; location.reload(); } } }, 'Reset app'))] }),
+      section({ title: 'What\'s real, and what isn\'t', ico: 'book', summary: 'Honest limits', body: [
+        h('ul', { style: { margin: 0, paddingLeft: '18px', display: 'grid', gap: '6px' } },
+          h('li.small', {}, h('b', {}, 'Works fully offline: '), 'meal planning, recipes, nutrition & cost estimates, grocery lists, pantry, PDFs, calendar export, sharing links, taste learning, coach.'),
+          h('li.small', {}, h('b', {}, 'Uses public services only for location & nearby places: '), 'OpenStreetMap (places, place search) and a ZIP-code lookup (only your ZIP is sent). Calendar, store, delivery and map links open the provider\'s own page.'),
+          h('li.small', {}, h('b', {}, 'Not possible without accounts or paid APIs: '), 'live grocery prices & carts, live restaurant menus, hours, ratings or ordering. FOODIE never fabricates these — it links out instead.'),
+          h('li.small', {}, h('b', {}, 'Estimates: '), 'costs use average US prices scaled by a rough store price level; nutrition is calculated from typical ingredient values.'))] })));
+}
 
-    h('section.card.stack', {}, h('h3', {}, 'Budgets & shopping'),
-      h('div.grid.c3', {}, num('Weekly grocery budget ($)', 'weeklyBudget'), num('Monthly grocery budget ($)', 'monthlyBudget'), num('Monthly eating-out budget ($)', 'diningBudget')),
-      h('div.grid.c2', {}, field('Default grocery store', h('select', { onchange: (e) => set((x) => (x.store = e.target.value), false) }, STORES.map((s) => h('option', { value: s.id, selected: s.id === p.store }, s.name)))), num('People you usually cook for', 'household')),
-      priceBlock(p)),
-
-    h('section.card.stack', {}, h('h3', {}, 'FOODIE Coach'),
-      h('label.row', { style: { gap: '10px' } }, h('input', { type: 'checkbox', checked: p.coachOn, onchange: (e) => set((x) => (x.coachOn = e.target.checked), false) }), h('span', {}, h('b', {}, 'Show coach notes on recipes and tips on the dashboard'), h('div.small.muted', {}, 'Gentle heads-ups about allergies, diet, goals and budget. You can always override. Turn off for a quieter app.'))),
-      h('div.notice', {}, h('span', {}, '🤖'), h('span', {}, 'The Coach is a transparent set of rules running in your browser — not an AI model and nothing is sent anywhere. It never blocks a choice.'))),
-
-    h('section.card.stack', {}, h('h3', {}, 'Preferences'),
-      h('div.grid.c2', {}, field('Units', seg([{ id: 'us', label: 'US (oz, cups)' }, { id: 'metric', label: 'Metric (g, ml)' }], p.units, (v) => set((x) => { x.units = v; x.unitsSet = true; }, false))),
-        field('Appearance', seg([{ id: 'auto', label: 'Auto' }, { id: 'light', label: 'Light' }, { id: 'dark', label: 'Dark' }], p.theme, (v) => set((x) => (x.theme = v), false))),
-        field('Hemisphere (for seasonal picks)', seg([{ id: 'auto', label: 'Auto (from location)' }, { id: 'north', label: 'Northern' }, { id: 'south', label: 'Southern' }], p.hemisphereAuto !== false ? 'auto' : p.hemisphere, (v) => set((x) => { if (v === 'auto') x.hemisphereAuto = true; else { x.hemisphereAuto = false; x.hemisphere = v; } }, false)))),
-      h('div.field', {}, h('label', {}, 'Usual meal times (used for calendar events and prep schedules)'), h('div.grid.c4', {}, SLOTS.map((s) => field(SLOT_LABEL[s].split(' ')[0], h('input', { type: 'time', value: p.mealTimes[s], onchange: (e) => set((x) => (x.mealTimes[s] = e.target.value || x.mealTimes[s])) })))))),
-
-    h('section.card.stack', {}, h('h3', {}, 'Your data'), h('p.small.muted', { style: { margin: 0 } }, `Stored in this browser (${(storageBytes() / 1024).toFixed(0)} KB used). Clearing your browser data will erase it — export a backup now and then.`),
-      h('div.row', {}, h('button.btn.ghost', { onclick: () => { download(`foodie-backup-${new Date().toISOString().slice(0, 10)}.json`, exportJSON(), 'application/json'); toast('Backup downloaded'); } }, '⬇ Export backup'),
-        h('label.btn.ghost', {}, '⬆ Restore backup', h('input', { type: 'file', accept: 'application/json,.json', class: 'sr', onchange: restore })),
-        h('button.btn.danger', { onclick: async () => { if (await confirmDialog('This permanently erases all your plans, recipes, favorites and settings on this device.', { okLabel: 'Erase everything', danger: true, title: 'Reset FOODIE?' })) { resetState(); location.hash = '#/'; location.reload(); } } }, 'Reset app'))),
-
-    h('section.card.stack.sm', {}, h('h3', {}, 'What\'s real, and what isn\'t'),
-      h('ul', { style: { margin: 0, paddingLeft: '18px', display: 'grid', gap: '6px' } },
-        h('li.small', {}, h('b', {}, 'Works fully offline: '), 'meal planning, recipes, nutrition & cost estimates, grocery lists, pantry, PDFs, calendar export, sharing links, taste learning, coach.'),
-        h('li.small', {}, h('b', {}, 'Uses public services only when you tap: '), 'OpenStreetMap lookups for nearby restaurants; Google/Outlook calendar pages; store, delivery and map links.'),
-        h('li.small', {}, h('b', {}, 'Not possible without accounts or paid APIs: '), 'live grocery prices & carts, live restaurant menus, hours, ratings or ordering. FOODIE never fabricates these — it links out instead.'),
-        h('li.small', {}, h('b', {}, 'Estimates: '), 'costs use average US prices scaled by a rough store price level; nutrition is calculated from typical ingredient values.'))));
+/** Saved-ZIP field: the fallback used whenever live location is missing or too rough. */
+function zipField() {
+  let v = state.profile.zip || '';
+  const status = h('div.hint', {}, state.profile.zip ? `Using ZIP ${state.profile.zip} as your backup location.` : 'Optional, but recommended — it keeps nearby results correct when GPS is slow, blocked or rough.');
+  return h('form.zip-form', { onsubmit: async (e) => {
+    e.preventDefault(); const btn = e.target.querySelector('button'); btn.disabled = true; btn.textContent = 'Saving…';
+    const r = await saveZip(v); btn.disabled = false; btn.textContent = 'Save ZIP';
+    if (!r.ok) { toast(r.error === 'notfound' ? 'Couldn\'t find that ZIP — double-check it.' : 'Couldn\'t reach the lookup service — check your connection.'); return; }
+    status.textContent = r.cleared ? 'ZIP removed.' : `Saved. FOODIE will use ${state.profile.homeLoc?.label || 'this ZIP'} whenever live location isn't available.`;
+    if (!r.cleared) syncPlaces({ force: true }); toast(r.cleared ? 'ZIP removed' : 'ZIP saved');
+  } }, h('div.field', {}, h('label', {}, 'Home ZIP / postal code'), h('div.row.nowrap', { style: { gap: '8px' } }, h('input', { type: 'text', inputmode: 'numeric', autocomplete: 'postal-code', placeholder: 'e.g. 78701', value: v, maxlength: 10, oninput: (e) => (v = e.target.value) }), h('button.btn.primary', { type: 'submit' }, 'Save ZIP')), status));
 }
 
 async function restore(e) {
